@@ -70,19 +70,23 @@ function segments2path(segments) {
   return p;
 }
 
+function displaySegmentsAndPoint(segments, expectedPoint, resultPoints) {
+  var message = svgAssertTable(segments2path(segments),
+      segments2path(segments) + pointArray2path(resultPoints, 4),
+      segments2path(segments) + pointArray2path(expectedPoint, 2));
+  QUnit.config.current.assertions.push({
+    result: true,
+    message: message
+  });
+}
+
 test('2 segments intersections', function () {
   var s1 = [p(0, 0), p(20, 20)];
   var s2 = [p(20, 0), p(0, 20)];
   var res = intersectionSegments(s1, s2);
   var expected = {x: 10, y: 10};
   deepEqual(res, expected);
-  var message = svgAssertTable(segments2path([s1, s2]),
-      segments2path([s1, s2]) + point2circlePath(res),
-      segments2path([s1, s2]) + point2circlePath(expected));
-  QUnit.config.current.assertions.push({
-    result: true,
-    message: message
-  });
+  displaySegmentsAndPoint([s1, s2], [expected], [res]);
 });
 
 test('3 segments array intersections', function () {
@@ -96,11 +100,49 @@ test('3 segments array intersections', function () {
     {x: 5, y: 15}
   ];
   deepEqual(res, expected);
-  var message = svgAssertTable(segments2path(segments),
-      segments2path(segments) + pointArray2path(res),
-      segments2path(segments) + pointArray2path(expected));
-  QUnit.config.current.assertions.push({
-    result: true,
-    message: message
-  });
+  displaySegmentsAndPoint(segments, res, expected);
+});
+
+function randomPoint() {
+  return p(Math.random() * 200, Math.random() * 150);
+}
+test('random segments O(n^2) intersections', function () {
+  var segments = [];
+  for (var i = 0; i < 50; i++)
+    segments.push([randomPoint(), randomPoint()]);
+  var res = createIntersections(segments);
+  var expected = [];
+  displaySegmentsAndPoint(segments, res, expected);
+});
+
+test('initialization of event queue', function () {
+  var expected = [p(0, 0), p(0, 10), p(0, 20), p(10, 20), p(20, 0), p(20, 20)];
+  var s1 = [expected[0], expected[5]];
+  var s2 = [expected[4], expected[2]];
+  var s3 = [expected[1], expected[3]];
+  var segments = [s1, s2, s3];
+  var queue = createIntersectionsBentley(segments);
+  var res = [];
+  ok(!queue.isEmpty(), 'queue is not empty');
+  while (!queue.isEmpty())
+    res.push(queue.fetchFirst().point);
+  deepEqual(res, expected, 'events in correct order');
+  ok(queue.isEmpty(), 'queue is empty after dumping the events');
+  displaySegmentsAndPoint(segments, res, expected);
+});
+
+test('adding event to queue', function () {
+  var expected = [p(0, 0), p(0, 20), p(10, 20), p(20, 20)];
+  var s1 = [expected[0], expected[3]];
+  var segments = [s1];
+  var queue = createIntersectionsBentley(segments);
+  queue.push({point: expected[2]});
+  queue.push({point: expected[1]});
+  var res = [];
+  ok(!queue.isEmpty(), 'queue is not empty');
+  while (!queue.isEmpty())
+    res.push(queue.fetchFirst().point);
+  deepEqual(res, expected, 'events in correct order');
+  ok(queue.isEmpty(), 'queue is empty after dumping the events');
+  displaySegmentsAndPoint(segments, res, expected);
 });

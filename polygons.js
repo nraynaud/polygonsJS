@@ -19,12 +19,52 @@ function intersectionSegments(seg1, seg2) {
 
 function createIntersections(segments) {
   var intersections = [];
-  for (var i = 0; i < segments.length; i++) {
+  for (var i = 0; i < segments.length; i++)
     for (var j = i + 1; j < segments.length; j++) {
-      var intersection =  intersectionSegments(segments[i], segments[j])
+      var intersection = intersectionSegments(segments[i], segments[j]);
       if (intersection)
         intersections.push(intersection);
     }
-  }
   return intersections;
 }
+
+function createIntersectionsBentley(segments) {
+  var initialEvents = [];
+  for (var i = 0; i < segments.length; i++) {
+    var segment = segments[i];
+    initialEvents.push({point: segment[0]});
+    initialEvents.push({point: segment[1]});
+  }
+  var queue = createEventQueue(initialEvents);
+  return  queue;
+}
+
+function createEventQueue(initialEvents) {
+  var queue = [];
+
+  function sort() {
+    queue.sort(function (e1, e2) {
+      if (e1.point.x < e2.point.x)
+        return -1;
+      if (e1.point.x == e2.point.x)
+        return e1.point.y - e2.point.y;
+      return 1;
+    });
+  }
+
+  Array.prototype.push.apply(queue, initialEvents);
+  sort();
+  return {
+    push: function (element) {
+      queue.push(element);
+      sort();
+    },
+    fetchFirst: function () {
+      return queue.shift();
+    },
+    isEmpty: function () {
+      return queue.length == 0;
+    }
+  }
+}
+
