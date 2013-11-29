@@ -24,7 +24,7 @@ function svgAssertTable(inputPath, outputPath, expectedPath) {
     {d: expectedPath, cssClass: 'expected'},
     {d: outputPath, cssClass: 'output'}
   ]));
-  return '<div>Geometry: <table class="svgTest"><tr><th>input</th><th>output</th><th>expected</th><th>superposed</th></tr><tr>'
+  return '<div>Geometry: <table class="svgTest"><tr><th>Input</th><th>Actual Output</th><th>Expected Output</th><th>Superposed</th></tr><tr>'
       + row + '</tr></table></div>';
 }
 
@@ -92,10 +92,16 @@ test('2 segments intersections', function () {
 test('horizontal-vertical intersection', function () {
   var s1 = [p(0, 30), p(60, 30)];
   var s2 = [p(30, 0), p(30, 60)];
-  var res = intersectionSegments(s1, s2);
-  var expected = {x: 30, y: 30};
-  deepEqual(res, expected);
-  displaySegmentsAndPoint([s1, s2], [expected], [res]);
+  var res = [intersectionSegments(s1, s2)];
+  var expected = [
+    {x: 30, y: 30}
+  ];
+  deepEqual(res, expected, 'direct computation');
+  var segments = [s1, s2];
+  displaySegmentsAndPoint(segments, expected, res);
+  res = cleanupIntersectionsForDisplay(bentleyOttmann(segments));
+  deepEqual(res, expected, 'in Bentley-Ottmann');
+  displaySegmentsAndPoint(segments, expected, res);
 });
 
 test('2 almost horizontal segments intersections', function () {
@@ -184,35 +190,34 @@ test('adding left events to beam', function () {
   displaySegmentsAndPoint(segments, expected, res);
 });
 
-test('beam 2 segments', function () {
+test('beam 2 segments step by step checking', function () {
   var s1 = [p(0, 0), p(20, 20)];
   var s2 = [p(20, 0), p(0, 20)];
   var queue = createMockEventQueue([]);
   var beam = createMockScanBeam();
   beam.leftPoint(s1[0], s1, queue);
   beam.leftPoint(s2[1], s2, queue);
-  deepEqual(beam.dumpBeam(), [s1, s2]);
-  deepEqual(queue.dumpQueue(), [
-    {type: 'intersection', point: p(10, 10), segments: [s1, s2]}
-  ]);
-  beam.intersectionPoint(p(10, 10), [s1, s2], queue);
-  deepEqual(beam.dumpBeam(), [s2, s1]);
-  deepEqual(beam.getResult(), [
+  var segments = [s1, s2];
+  deepEqual(beam.dumpBeam(), segments, 'beam contains [s1, s2]');
+  deepEqual(queue.dumpQueue()[0].point, p(10, 10), 'queue event point is correct');
+  deepEqual(queue.dumpQueue()[0].type, 'intersection', 'queue event type is correct');
+  deepEqual(queue.dumpQueue()[0].segments, segments, 'queue intersection event segments is correct');
+  beam.intersectionPoint(p(10, 10), segments, queue);
+  deepEqual(beam.dumpBeam(), [s2, s1], 'beam contains [s1, s2]');
+  var expected = [
     [
       p(10, 10),
-      [s1, s2]
+      segments
     ]
-  ]);
+  ];
+  deepEqual(beam.getResult(), expected, 'correct beam reults');
   beam.rightPoint(s2[0], s2, queue);
-  deepEqual(beam.dumpBeam(), [s1]);
+  deepEqual(beam.dumpBeam(), [s1], 'beam contains [s1]');
   beam.rightPoint(s1[1], s1, queue);
-  deepEqual(beam.dumpBeam(), []);
-  deepEqual(beam.getResult(), [
-    [
-      {x: 10, y: 10},
-      [s1, s2]
-    ]
-  ]);
+  deepEqual(beam.dumpBeam(), [], 'beam is empty');
+  var result = beam.getResult();
+  deepEqual(result, expected, 'correct beam reults');
+  displaySegmentsAndPoint(segments, cleanupIntersectionsForDisplay(expected), cleanupIntersectionsForDisplay(result));
 });
 
 test('beam 4 segments; intersection masked by intersection', function () {
@@ -224,7 +229,7 @@ test('beam 4 segments; intersection masked by intersection', function () {
   var res = bentleyOttmann(segments);
   var expected = [p(10, 10), p(15, 5), p(15, 15)];
   res = cleanupIntersectionsForDisplay(res);
-  deepEqual(res, expected);
+  deepEqual(res, expected, 'same intersections as expected');
   displaySegmentsAndPoint(segments, expected, res);
 });
 
@@ -236,7 +241,7 @@ test('beam 3 segments; intersection masked by right segment', function () {
   var res = bentleyOttmann(segments);
   var expected = [p(12.5, 10)];
   res = cleanupIntersectionsForDisplay(res);
-  deepEqual(res, expected);
+  deepEqual(res, expected, 'same intersection as expected');
   displaySegmentsAndPoint(segments, expected, res);
 });
 
@@ -248,7 +253,7 @@ test('beam 3 segments; intersecting beam comes late', function () {
   var res = bentleyOttmann(segments);
   var expected = [p(125, 100), p(181.8181818181818, 100)];
   res = cleanupIntersectionsForDisplay(res);
-  deepEqual(res, expected);
+  deepEqual(res, expected, 'same intersections as expected');
   displaySegmentsAndPoint(segments, expected, res);
 });
 

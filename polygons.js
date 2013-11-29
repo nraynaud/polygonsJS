@@ -2,6 +2,7 @@
 
 //http://www.kevlindev.com/gui/math/intersection/Intersection.js
 function intersectionSegments(seg1, seg2) {
+  //order the segments so that the results are always the same
   if (comparePoint(seg1[0], seg2[0]) > 0) {
     var tmp = seg1;
     seg1 = seg2;
@@ -49,8 +50,12 @@ function eventsForSegment(segment) {
   if (comparePoint(segment[0], segment[1]) > 0)
     s.reverse();
   return [
-    {type: 'left', point: s[0], segment: s},
-    {type: 'right', point: s[1], segment: s}
+    {type: 'left', point: s[0], segment: s, action: function (scanBeam, eventQueue) {
+      scanBeam.leftPoint(s[0], s, eventQueue);
+    }},
+    {type: 'right', point: s[1], segment: s, action: function (scanBeam, eventQueue) {
+      scanBeam.rightPoint(s[1], s, eventQueue);
+    }}
   ];
 }
 
@@ -67,20 +72,8 @@ function initialPopulationOfQueue(segments) {
 function bentleyOttmann(segments) {
   var queue = initialPopulationOfQueue(segments);
   var scanBeam = createMockScanBeam();
-  while (!queue.isEmpty()) {
-    var event = queue.fetchFirst();
-    switch (event.type) {
-      case 'left':
-        scanBeam.leftPoint(event.point, event.segment, queue);
-        break;
-      case 'right':
-        scanBeam.rightPoint(event.point, event.segment, queue);
-        break;
-      case 'intersection':
-        scanBeam.intersectionPoint(event.point, event.segments, queue);
-        break;
-    }
-  }
+  while (!queue.isEmpty())
+    queue.fetchFirst().action(scanBeam, queue);
   return scanBeam.getResult();
 }
 
@@ -100,7 +93,6 @@ function createMockEventQueue(initialEvents) {
   function eventExists(event) {
     for (var i = 0; i < queue.length; i++)
       if (queue[i].type == 'intersection'
-          && pointEquals(queue[i].point, event.point)
           && (segmentEqual(event.segments[0], queue[i].segments[0]) && segmentEqual(event.segments[1], queue[i].segments[1])
           || segmentEqual(event.segments[1], queue[i].segments[0]) && segmentEqual(event.segments[0], queue[i].segments[1])))
         return true;
@@ -174,8 +166,13 @@ function createMockScanBeam() {
 
   function pushIfIntersectsOnRight(currentPoint, previousSegment, nextSegment, eventQueue) {
     var intersection = intersectionSegments(nextSegment, previousSegment);
-    if (intersection != null && comparePoint(currentPoint, intersection) < 0)
-      eventQueue.pushIntersectionEvent({type: 'intersection', point: intersection, segments: [previousSegment, nextSegment]});
+    if (intersection != null && comparePoint(currentPoint, intersection) < 0) {
+      var segments = [previousSegment, nextSegment];
+      eventQueue.pushIntersectionEvent({type: 'intersection', point: intersection, segments: segments,
+        action: function (scanBeam, eventQueue) {
+          scanBeam.intersectionPoint(intersection, segments, eventQueue);
+        }});
+    }
   }
 
   return {
