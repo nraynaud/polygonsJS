@@ -315,49 +315,30 @@ test('rectangle', function () {
     displayMessage(svgAssertTable(polygon2path(polygon), '', ''));
 });
 
-test('intersection of rays', function () {
-    var polygon = [
-        p(10, 10),
-        p(100, 10),
-        p(150, 60),
-        p(150, 100),
-        p(100, 140),
-        p(20, 150),
-        p(10, 140)
-        //, p(15, 100)//reflex
-    ];
-    var p2 = [
-        [326, 361],
-        [361, 300],
-        [397, 258],
-        [457, 225],
-        [490, 235],
-        [522, 255],
-        [564, 308],
-        [606, 373],
-        [575, 426],
-        [540, 464],
-        [465, 503],
-        [439, 510],
-        [367, 475],
-        [348, 438]
-    ];
-    var polygon2 = [];
-    for (var i = 0; i < p2.length; i++) {
-        polygon2.push(p((p2[i][0] - 326) / 2, (p2[i][1] - 220) / 2));
-    }
-    polygon = polygon2;
+
+function createSkeleton(polygon) {
     var bisectors = [];
-    var points = [];
+    var skelPoints = [];
     var skel = [];
     var remainingBisectors = [];
     var remainingOrigins = [];
-
     var area = signedArea(polygon);
 
-    function createBisectorRay(origin, previousEdge, nextEdge) {
-        var bPoint = bisectorPointForEdges(previousEdge, nextEdge, origin);
-        return {origin: origin, direction: bPoint, previousEdge: previousEdge, nextEdge: nextEdge};
+    function createBisectorRay(origin, previousEdge, nextEdge, edgesIntersection, coveredEdges) {
+        if (edgesIntersection == null)
+            edgesIntersection = intersectionSegments(previousEdge, nextEdge, true);
+        if (!isFinite(edgesIntersection.x) || !isFinite(edgesIntersection.y))
+            edgesIntersection = origin;
+        var bVector = bisectorVectorForEdges(previousEdge, nextEdge);
+        if (isNaN(bVector.x) || isNaN(bVector.y) || bVector.x == 0 && bVector.y == 0)
+            return createPerpendicularRay(origin, nextEdge, previousEdge, coveredEdges);
+        var bPoint = {x: edgesIntersection.x + bVector.x, y: edgesIntersection.y + bVector.y};
+        return {type: 'bisector', origin: origin, direction: bPoint, edgesIntersection: edgesIntersection, previousEdge: previousEdge, nextEdge: nextEdge, coveredEdges: coveredEdges};
+    }
+
+    function createPerpendicularRay(vertex, nextEdge, previousEdge, coveredEdges) {
+        var direction = perpendicularPoint(vertex, nextEdge);
+        return  {type: 'perpendicular', origin: vertex, edgesIntersection: vertex, direction: direction, previousEdge: previousEdge, nextEdge: nextEdge, coveredEdges: coveredEdges};
     }
 
     function createLinkedList(content) {
@@ -384,7 +365,8 @@ test('intersection of rays', function () {
                     return;
                 var currentBucket = val;
                 do {
-                    handler(currentBucket);
+                    if (handler(currentBucket))
+                        break;
                     currentBucket = currentBucket.next;
                 } while (currentBucket != val);
             },
@@ -400,7 +382,7 @@ test('intersection of rays', function () {
                 bucket.next.prev = bucket.prev;
             },
             isEmpty: function () {
-                return val != null;
+                return val == null;
             }
         }
     }
@@ -422,14 +404,29 @@ test('intersection of rays', function () {
             point.reflex = true;
             reflexPoints.push(point);
         } else
-            bisectors.push(createBisectorRay(point, previousPoint.nextEdge, point.nextEdge));
+            bisectors.push(createBisectorRay(point, previousPoint.nextEdge, point.nextEdge, point, [previousPoint.nextEdge, point.nextEdge]));
     }
-    svgDisplayTable([
-        {label: 'reflex points', content: pathList2svg([
-            {d: polygon2path(polygon) + pointArray2path(reflexPoints)}
-        ])}
-    ]);
+    if (reflexPoints.length)
+        svgDisplayTable([
+            {label: 'reflex skelPoints', content: pathList2svg([
+                {d: polygon2path(polygon) + pointArray2path(reflexPoints)}
+            ])}
+        ]);
     var bisectorList = createLinkedList(bisectors);
+
+    function protectedIntersection(segment1, segment2) {
+        var intersection = intersectionSegments(segment1, segment2, true);
+        if (isNaN(intersection.x) || isNaN(intersection.y)) {
+            if (distToSegmentSquared(segment1[0], segment2) == 0)
+                return segment1[0];
+            if (distToSegmentSquared(segment1[1], segment2) == 0)
+                return segment1[1];
+            return null;
+        }
+        if (intersection.x == 54.99999999999999)
+            console.log(intersection, segment1, segment2);
+        return intersection;
+    }
 
     function run2() {
         var stop = false;
@@ -440,43 +437,57 @@ test('intersection of rays', function () {
             var previous = currentBucket.prev.val;
             var current = currentBucket.val;
             var next = currentBucket.next.val;
-            var previousSegment = [previous.origin, previous.direction];
-            var currentSegment = [current.origin, current.direction];
-            var nextSegment = [next.origin, next.direction];
-            var previousIntersection = intersectionSegments(previousSegment, currentSegment, true);
-            var nextIntersection = intersectionSegments(currentSegment, nextSegment, true);
-            current.behind = segLength([current.origin, previousIntersection]);
-            current.ahead = segLength([current.origin, nextIntersection]);
+            var previousSegment = [previous.edgesIntersection, previous.direction];
+            var currentSegment = [current.edgesIntersection, current.direction];
+            var nextSegment = [next.edgesIntersection, next.direction];
+            var previousIntersection = protectedIntersection(previousSegment, currentSegment);
+            var nextIntersection = protectedIntersection(currentSegment, nextSegment);
+            current.behind = previousIntersection ? segLength([current.origin, previousIntersection]) : Infinity;
+            current.ahead = nextIntersection ? segLength([current.origin, nextIntersection]) : Infinity;
             current.aheadPoint = nextIntersection;
             remainingBisectors.push([current.origin, current.direction]);
             remainingOrigins.push(current.origin);
         });
         var deleteList = [];
-        points = [];
+        skelPoints = [];
         bisectorList.iterate(function (currentBucket) {
             var previous = currentBucket.prev.val;
             var current = currentBucket.val;
             var next = currentBucket.next.val;
             if (previous == next) {
+                console.log('stop 2');
                 newSkel.push([current.origin, next.origin]);
                 stop = true;
-            } else if (currentBucket.next.next == currentBucket.prev) {
-                newSkel.push([current.origin, current.aheadPoint]);
-                stop = true;
-            } else if (current.behind >= current.ahead && next.ahead >= next.behind) {
+                return true;
+            } else if (current.aheadPoint && current.behind >= current.ahead && next.ahead >= next.behind) {
                 var intersectionPoint = current.aheadPoint;
-                var prevSegment = current.previousEdge;
-                var nextSegment = next.nextEdge;
-                var sqRadius = Math.min(distToSegmentSquared(intersectionPoint, prevSegment), distToSegmentSquared(intersectionPoint, nextSegment));
+                var prevEdge = current.previousEdge;
+                var nextEdge = next.nextEdge;
+                var coveredEdges = current.coveredEdges.concat(next.coveredEdges);
+                var sqRadius = Math.min(distToSegmentSquared(intersectionPoint, prevEdge), distToSegmentSquared(intersectionPoint, nextEdge));
                 for (var i = 0; i < polygon.length; i++) {
-                    if (distToSegmentSquared(intersectionPoint, polygon[i].nextEdge) < sqRadius)
-                        return;
+                    if (coveredEdges.indexOf(polygon[i].nextEdge) == -1 && distToSegmentSquared(intersectionPoint, polygon[i].nextEdge) < sqRadius) {
+                        console.log('radius', sqRadius, distToSegmentSquared(intersectionPoint, polygon[i].nextEdge));
+                        svgDisplayTable([
+                            {label: 'eliminated because of radius', content: pathList2svg([
+                                {d: segments2path([
+                                    [current.origin, intersectionPoint],
+                                    [next.origin, intersectionPoint]
+                                ])
+                                    + segments2path([polygon[i].nextEdge])
+                                    + pointArray2path([intersectionPoint], Math.sqrt(distToSegmentSquared(intersectionPoint, polygon[i].nextEdge)))}
+                            ])}
+                        ]);
+                        return false;
+                    }
                 }
                 newSkel.push([current.origin, intersectionPoint]);
                 newSkel.push([next.origin, intersectionPoint]);
-                points.push(intersectionPoint);
-                deleteList.push([currentBucket, createBisectorRay(intersectionPoint, prevSegment, nextSegment)]);
+                skelPoints.push(intersectionPoint);
+                var newRay = createBisectorRay(intersectionPoint, prevEdge, nextEdge, null, coveredEdges);
+                deleteList.push([currentBucket, newRay]);
             }
+            return false;
         });
         for (var i = 0; i < deleteList.length; i++) {
             var bucket = deleteList[i][0];
@@ -484,9 +495,10 @@ test('intersection of rays', function () {
             bisectorList.remove(bucket.next);
         }
         skel.push.apply(skel, newSkel);
+
         svgDisplayTable([
             {label: 'rays', content: pathList2svg([
-                {d: polygon2path(polygon) + segments2path(remainingBisectors) + pointArray2path(remainingOrigins) + pointArray2path(points, 2)}
+                {d: polygon2path(polygon) + segments2path(remainingBisectors) + pointArray2path(remainingOrigins) + pointArray2path(skelPoints, 2)}
             ])},
             {label: 'new skeleton', content: pathList2svg([
                 {d: polygon2path(polygon) + segments2path(newSkel)}
@@ -495,11 +507,50 @@ test('intersection of rays', function () {
                 {d: polygon2path(polygon) + segments2path(skel)}
             ])}
         ]);
-        return !bisectorList.isEmpty() || stop;
+        if (!newSkel.length)
+            throw new Error('skeleton has not moved');
+        return bisectorList.isEmpty() || stop;
     }
 
     var startCount = 10;
     while (!run2() && startCount--);
+}
 
-    console.log(skel);
+test('intersection of rays', function () {
+    var polygon = [
+        p(10, 10),
+        p(100, 10),
+        //       p(150, 60),
+
+        p(100, 70),
+//        p(150, 100),
+        p(100, 140),
+//        p(20, 150),
+        //p(50, 100) ,//reflex
+        p(10, 140),
+        p(10, 95)
+    ];
+    var p2 = [
+        [326, 361],
+        [361, 300],
+        [397, 258],
+        [457, 225],
+        [490, 235],
+        [522, 255],
+        [564, 308],
+        [606, 373],
+        [575, 426],
+        [540, 464],
+        [465, 503],
+        [439, 510],
+        [367, 475],
+        [348, 438]
+    ];
+    var polygon2 = [];
+    for (var i = 0; i < p2.length; i++) {
+        polygon2.push(p((p2[i][0] - 326) / 2, (p2[i][1] - 220) / 2));
+    }
+
+    createSkeleton(polygon);
+    createSkeleton(polygon2);
 });

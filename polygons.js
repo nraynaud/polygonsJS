@@ -1,6 +1,6 @@
 "use strict";
 
-function vectLegth(x, y) {
+function vectLength(x, y) {
     function sq(val) {
         return val * val;
     }
@@ -9,31 +9,44 @@ function vectLegth(x, y) {
 }
 
 function segLength(segment) {
-    return vectLegth(segment[0].x - segment[1].x, segment[0].y - segment[1].y);
+    return vectLength(segment[0].x - segment[1].x, segment[0].y - segment[1].y);
 }
 
 function unitVector(inVector) {
-    var len = vectLegth(inVector.x, inVector.y);
+    var len = vectLength(inVector.x, inVector.y);
     return {x: inVector.x / len, y: inVector.y / len};
 }
 
 function bisectorVector(v1, v2) {
-    v1 = unitVector(v1);
-    v2 = unitVector(v2);
-    return unitVector({x: v1.x + v2.x, y: v1.y + v2.y});
+    var l1 = vectLength(v1.x, v1.y);
+    var l2 = vectLength(v2.x, v2.y);
+    return {x: l2 * v1.x + l1 * v2.x, y: l2 * v1.y + l1 * v2.y};
 }
 
 function bisectorPoint(p1, p2, p3) {
     return bisectorPointForEdges([p2, p1], [p2, p3], p2);
 }
 
+function segmentToVector(segment) {
+    return {x: segment[1].x - segment[0].x, y: segment[1].y - segment[0].y};
+}
+
+function perpendicularPoint(vertex, segment) {
+    var vector = unitVector(segmentToVector(segment));
+    var v = {x: -vector.y, y: vector.x};
+    return  {x: vertex.x + v.x * 100, y: vertex.y + v.y * 100};
+}
+
+function bisectorVectorForEdges(s1, s2) {
+    s1 = [s1[1], s1[0]];
+    return bisectorVector({x: s1[1].x - s1[0].x, y: s1[1].y - s1[0].y},
+        {x: s2[1].x - s2[0].x, y: s2[1].y - s2[0].y});
+}
+
 // edges should be in polygon-boundary order
 function bisectorPointForEdges(s1, s2, originPoint) {
-    s1 = [s1[1], s1[0]];
-    var bVector = bisectorVector({x: s1[1].x - s1[0].x, y: s1[1].y - s1[0].y},
-        {x: s2[1].x - s2[0].x, y: s2[1].y - s2[0].y});
-
-    return {x: originPoint.x + bVector.x * 200, y: originPoint.y + bVector.y * 200};
+    var bVector = bisectorVectorForEdges(s1, s2);
+    return {x: originPoint.x + bVector.x * 100, y: originPoint.y + bVector.y * 100};
 }
 
 function distToSegmentSquared(point, segment) {
