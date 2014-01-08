@@ -317,7 +317,7 @@ test('rectangle', function () {
 
 
 function createSkeleton(polygon) {
-    var bisectors = [];
+    var rays = [];
     var skelPoints = [];
     var skel = [];
     var remainingBisectors = [];
@@ -394,17 +394,23 @@ function createSkeleton(polygon) {
     var reflexPoints = [];
     for (var i = 0; i < polygon.length; i++) {
         var previousPoint = polygon[(i + polygon.length - 1) % polygon.length];
-        var point = polygon[i];
+        var vertex = polygon[i];
         if (!previousPoint.nextEdge)
-            previousPoint.nextEdge = [previousPoint, point];
+            previousPoint.nextEdge = [previousPoint, vertex];
         var nextPoint = polygon[(i + 1) % polygon.length];
-        if (!point.nextEdge)
-            point.nextEdge = [point, nextPoint];
-        if (isReflexVertex(point, previousPoint, nextPoint, area)) {
-            point.reflex = true;
-            reflexPoints.push(point);
+        if (!vertex.nextEdge)
+            vertex.nextEdge = [vertex, nextPoint];
+        if (isReflexVertex(vertex, previousPoint, nextPoint, area)) {
+            vertex.reflex = true;
+            reflexPoints.push(vertex);
+            svgDisplayTable([
+                {label: 'reflex vertex', content: pathList2svg([
+                    {d: polygon2path(polygon) + pointArray2path(reflexPoints)}
+                ])}
+            ]);
+            throw new Error('concave polygons are not supported');
         } else
-            bisectors.push(createBisectorRay(point, previousPoint.nextEdge, point.nextEdge, point, [previousPoint.nextEdge, point.nextEdge]));
+            rays.push(createBisectorRay(vertex, previousPoint.nextEdge, vertex.nextEdge, vertex, [previousPoint.nextEdge, vertex.nextEdge]));
     }
     if (reflexPoints.length)
         svgDisplayTable([
@@ -412,7 +418,7 @@ function createSkeleton(polygon) {
                 {d: polygon2path(polygon) + pointArray2path(reflexPoints)}
             ])}
         ]);
-    var bisectorList = createLinkedList(bisectors);
+    var rayList = createLinkedList(rays);
 
     function protectedIntersection(segment1, segment2) {
         var intersection = intersectionSegments(segment1, segment2, true);
@@ -433,7 +439,7 @@ function createSkeleton(polygon) {
         var newSkel = [];
         remainingBisectors = [];
         remainingOrigins = [];
-        bisectorList.iterate(function (currentBucket) {
+        rayList.iterate(function (currentBucket) {
             var previous = currentBucket.prev.val;
             var current = currentBucket.val;
             var next = currentBucket.next.val;
@@ -450,7 +456,7 @@ function createSkeleton(polygon) {
         });
         var deleteList = [];
         skelPoints = [];
-        bisectorList.iterate(function (currentBucket) {
+        rayList.iterate(function (currentBucket) {
             var previous = currentBucket.prev.val;
             var current = currentBucket.val;
             var next = currentBucket.next.val;
@@ -492,7 +498,7 @@ function createSkeleton(polygon) {
         for (var i = 0; i < deleteList.length; i++) {
             var bucket = deleteList[i][0];
             bucket.val = deleteList[i][1];
-            bisectorList.remove(bucket.next);
+            rayList.remove(bucket.next);
         }
         skel.push.apply(skel, newSkel);
 
@@ -509,7 +515,7 @@ function createSkeleton(polygon) {
         ]);
         if (!newSkel.length)
             throw new Error('skeleton has not moved');
-        return bisectorList.isEmpty() || stop;
+        return rayList.isEmpty() || stop;
     }
 
     var startCount = 10;
@@ -526,7 +532,7 @@ test('intersection of rays', function () {
 //        p(150, 100),
         p(100, 140),
 //        p(20, 150),
-        //p(50, 100) ,//reflex
+//        p(50, 100) ,//reflex
         p(10, 140),
         p(10, 95)
     ];
