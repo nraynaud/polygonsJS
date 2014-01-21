@@ -43,6 +43,10 @@ function createSkeleton(polygon) {
         return [segment[1], segment[0]];
     }
 
+    function raySitesRepresentation(ray) {
+        return ray.firstSite.representation() + ray.secondSite.representation();
+    }
+
     /**
      *
      * @param origin
@@ -70,9 +74,6 @@ function createSkeleton(polygon) {
             return polylines2path([
                 [this.behindPoint, this.origin]
             ]);
-        },
-        sitesRepresentation: function () {
-            return this.firstSite.representation() + this.secondSite.representation();
         }
     };
 
@@ -97,9 +98,6 @@ function createSkeleton(polygon) {
             var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
             var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
             return polylines2path([segmentParabola([p1, p2], this.vertex)]);
-        },
-        sitesRepresentation: function () {
-            return this.firstSite.representation() + this.secondSite.representation();
         },
         filterPointCandidate: function (point) {
             return pointProjectsOnSegments([this.edge.segment], point);
@@ -134,6 +132,8 @@ function createSkeleton(polygon) {
     }
 
     function intersectNextRay(current, next) {
+        if (current.nextRay == next)
+            return;
         var result;
         var selectionComment;
         var rejectedPointsProjection = [];
@@ -162,8 +162,8 @@ function createSkeleton(polygon) {
         svgDisplayTable([
             {label: 'selection candidate ' + selectionComment, content: pathList2svg([
                 {cssClass: 'gray', d: polygon2path(polygon) + pointArray2path(rejectedPoint2, 3) + pointArray2path(rejectedPointsProjection, 6)},
-                {cssClass: 'blue', d: next.representation() + next.sitesRepresentation()},
-                {cssClass: 'red', d: current.representation() + current.sitesRepresentation() + pointArray2path([current.aheadPoint])}
+                {cssClass: 'blue', d: next.representation() + raySitesRepresentation(next)},
+                {cssClass: 'red', d: current.representation() + raySitesRepresentation(current) + pointArray2path([current.aheadPoint])}
             ])}
         ]);
     }
@@ -401,7 +401,7 @@ function createSkeleton(polygon) {
                         svgDisplayTable([
                             {label: 'eliminated because of radius', content: pathList2svg([
                                 {cssClass: 'gray', d: polygon2path(polygon) },
-                                {cssClass: 'blue', d: currentRay.representation() + currentRay.sitesRepresentation()
+                                {cssClass: 'blue', d: currentRay.representation() + raySitesRepresentation(currentRay)
                                     + nextRay.representation() + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))},
                                 {cssClass: 'red', d: polygon[i].nextEdge.representation()
                                     + pointArray2path([intersectionPoint], Math.sqrt(otherSqrDist))}
@@ -423,10 +423,10 @@ function createSkeleton(polygon) {
                     ])},
                     {label: 'new ray and corresponding sites', content: pathList2svg([
                         {cssClass: 'gray', d: polygon2path(polygon)},
-                        {d: currentRay.sitesRepresentation() + currentRay.representation()},
+                        {d: raySitesRepresentation(currentRay) + currentRay.representation()},
                         {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
                         {cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
-                            + newRay.sitesRepresentation() + newRay.representation()}
+                            + raySitesRepresentation(newRay) + newRay.representation()}
                     ])}
                 ]);
                 deleteList.push([currentBucket, newRay]);
@@ -441,7 +441,7 @@ function createSkeleton(polygon) {
         }
         skelRepr += newSkelRepresentation;
         svgDisplayTable([
-            {label: 'previous rays', content: pathList2svg([
+            {label: 'input step rays, selected intersections in red', content: pathList2svg([
                 {cssClass: 'gray', d: polygon2path(polygon)},
                 {cssClass: 'blue', d: currentRays},
                 {cssClass: 'red', d: pointArray2path(skelPoints, 2)}
@@ -450,7 +450,7 @@ function createSkeleton(polygon) {
                 {cssClass: 'gray', d: polygon2path(polygon)},
                 {cssClass: 'blue', d: newSkelRepresentation}
             ])},
-            {label: 'aggregated skeleton', content: pathList2svg([
+            {label: 'skeleton after step', content: pathList2svg([
                 {cssClass: 'gray', d: polygon2path(polygon)},
                 {cssClass: 'blue', d: skelRepr}
             ])}

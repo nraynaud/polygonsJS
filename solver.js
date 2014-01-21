@@ -49,26 +49,11 @@ function det2x2(a, b, c, d) {
     return res[0];
 }
 
-
 function EquationSystemCreator() {
     this.quadraticEquations = [];
     this.linearEquations = [];
-    this.segments = [];
 }
 EquationSystemCreator.prototype = {
-    finalize: function () {
-        for (var i = 0; i < this.segments.length; i++) {
-            var o = this.segments[i];
-            this._reallyAddSegment(o);
-        }
-    },
-    _reallyAddSegment: function (segment) {
-        var length = segLength(segment);
-        var slope = det2x2(segment[1].x, segment[0].x, segment[1].y, segment[0].y) / length;
-        var a = (segment[1].y - segment[0].y) / length;
-        var b = -(segment[1].x - segment[0].x) / length;
-        this._addEquation(0, a, b, 1, slope);
-    },
     _addEquation: function (quadratic, a, b, k, c) {
         var equation = {a: a, b: b, k: k, c: c};
         if (quadratic)
@@ -81,7 +66,11 @@ EquationSystemCreator.prototype = {
         return this;
     },
     addSegment: function (segment) {
-        this.segments.push(segment);
+        var length = segLength(segment);
+        var slope = det2x2(segment[1].x, segment[0].x, segment[1].y, segment[0].y) / length;
+        var a = (segment[1].y - segment[0].y) / length;
+        var b = -(segment[1].x - segment[0].x) / length;
+        this._addEquation(0, a, b, 1, slope);
         return this;
     }
 };
@@ -99,24 +88,14 @@ function solveEquations(creator, solutionsFilter) {
 
     function solve(linearEquations, xi, yi, ti, quadraticEquation) {
         var firstEq = linearEquations[0];
-        var ai = firstEq[xi];
-        var bi = firstEq[yi];
-        var ki = firstEq[ti];
-        var ci = firstEq.c;
-
         var secondEq = linearEquations[1];
-        var aj = secondEq[xi];
-        var bj = secondEq[yi];
-        var kj = secondEq[ti];
-        var cj = secondEq.c;
-
-        var determinant = det2x2(ai, aj, bi, bj);
+        var determinant = det2x2(firstEq[xi], secondEq[xi], firstEq[yi], secondEq[yi]);
         if (determinant == 0)
             return [];
-        var a0 = det2x2(bi, bj, ki, kj) / determinant;
-        var a1 = -det2x2(ai, aj, ki, kj) / determinant;
-        var b0 = det2x2(bi, bj, ci, cj) / determinant;
-        var b1 = -det2x2(ai, aj, ci, cj) / determinant;
+        var a0 = det2x2(firstEq[yi], secondEq[yi], firstEq[ti], secondEq[ti]) / determinant;
+        var a1 = -det2x2(firstEq[xi], secondEq[xi], firstEq[ti], secondEq[ti]) / determinant;
+        var b0 = det2x2(firstEq[yi], secondEq[yi], firstEq.c, secondEq.c) / determinant;
+        var b1 = -det2x2(firstEq[xi], secondEq[xi], firstEq.c, secondEq.c) / determinant;
 
         var aargs = {
             a: [1, quadraticEquation.a],
@@ -174,6 +153,7 @@ function solveEquations(creator, solutionsFilter) {
         if (discriminant > 0) {
             var q = b > 0 ? (b + Math.sqrt(discriminant)) / -2 : (b - Math.sqrt(discriminant)) / -2;
             return [q / a, c / q];
+            //not really proud of that one
         } else if (discriminant == 0 || Math.abs(discriminant / (b * b)) < Math.pow(2, -50))
             return [-b / (2 * a)];
         return [];
@@ -199,7 +179,6 @@ function solveEquations(creator, solutionsFilter) {
         return [];
     }
 
-    creator.finalize();
     var quadraticEquations = clone(creator.quadraticEquations);
     var linearEquations = clone(creator.linearEquations);
     var quadLength = quadraticEquations.length;
