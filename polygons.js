@@ -1,15 +1,40 @@
 "use strict";
 
-function vectLength(x, y) {
-    function sq(val) {
-        return val * val;
-    }
+//https://github.com/substack/point-in-polygon/blob/master/index.js
+// http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+//to be replaced by a vertex radius filter when there is a kd map.
+function pointInPolygon(point, polygon) {
+    var x = point.x, y = point.y;
+    var inside = false;
+    for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        var xi = polygon[i].x, yi = polygon[i].y;
+        var xj = polygon[j].x, yj = polygon[j].y;
 
-    return Math.sqrt(sq(x) + sq(y));
+        var intersect = ((yi > y) != (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function vectLength(x, y) {
+    return Math.sqrt(sqVectorLength(x, y));
+}
+
+function sqr(val) {
+    return val * val;
+}
+
+function sqVectorLength(x, y) {
+    return sqr(x) + sqr(y);
 }
 
 function segLength(segment) {
     return vectLength(segment[0].x - segment[1].x, segment[0].y - segment[1].y);
+}
+
+function sqSegLength(segment) {
+    return sqVectorLength(segment[0].x - segment[1].x, segment[0].y - segment[1].y);
 }
 
 function unitVector(inVector) {
@@ -23,37 +48,42 @@ function bisectorVector(v1, v2) {
     return {x: l2 * v1.x + l1 * v2.x, y: l2 * v1.y + l1 * v2.y};
 }
 
-function bisectorPoint(p1, p2, p3) {
-    return bisectorPointForEdges([p2, p1], [p2, p3], p2);
-}
-
 function segmentToVector(segment) {
     return {x: segment[1].x - segment[0].x, y: segment[1].y - segment[0].y};
 }
 
 function perpendicularPoint(vertex, segment) {
     var vector = unitVector(segmentToVector(segment));
+    //noinspection JSSuspiciousNameCombination
     var v = {x: -vector.y, y: vector.x};
     return  {x: vertex.x + v.x * 100, y: vertex.y + v.y * 100};
 }
 
-function bisectorVectorForEdges(s1, s2) {
-    s1 = [s1[1], s1[0]];
+function bisectorVectorFromSegments(s1, s2) {
     return bisectorVector({x: s1[1].x - s1[0].x, y: s1[1].y - s1[0].y},
         {x: s2[1].x - s2[0].x, y: s2[1].y - s2[0].y});
 }
 
-// edges should be in polygon-boundary order
-function bisectorPointForEdges(s1, s2, originPoint) {
-    var bVector = bisectorVectorForEdges(s1, s2);
-    return {x: originPoint.x + bVector.x * 100, y: originPoint.y + bVector.y * 100};
+function pointEquals(p1, p2) {
+    return p1.x == p2.x && p1.y == p2.y;
+}
+
+function pointProjectedOnSegment(point, segment) {
+    function dist2(v, w) {
+        return sqr(v.x - w.x) + sqr(v.y - w.y)
+    }
+
+    var v = segment[0];
+    var w = segment[1];
+    var l2 = dist2(v, w);
+    if (l2 == 0) return dist2(point, v);
+    var t = ((point.x - v.x) * (w.x - v.x) + (point.y - v.y) * (w.y - v.y)) / l2;
+    if (t >= 0 && t <= 1)
+        return { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+    return null;
 }
 
 function distToSegmentSquared(point, segment) {
-    function sqr(x) {
-        return x * x
-    }
-
     function dist2(v, w) {
         return sqr(v.x - w.x) + sqr(v.y - w.y)
     }
@@ -101,7 +131,7 @@ function intersectionSegments(seg1, seg2, allowOutside) {
     var u = intersectionAbscissa(seg1, seg2);
     var ua = u[0];
     var ub = u[1];
-    if (allowOutside || (0 <= ua && ua <= 1 && 0 <= ub && ub <= 1))
+    if (allowOutside && isFinite(ua) && isFinite(ub) || (0 <= ua && ua <= 1 && 0 <= ub && ub <= 1))
         return {x: a1.x + ua * (a2.x - a1.x), y: a1.y + ua * (a2.y - a1.y)};
     return null;
 }
@@ -163,10 +193,6 @@ function bentleyOttmann(segments) {
 
 function createMockEventQueue(initialEvents) {
     var queue = [];
-
-    function pointEquals(p1, p2) {
-        return p1.x == p2.x && p1.y == p2.y;
-    }
 
     function segmentEqual(s1, s2) {
         return s1 == s2
