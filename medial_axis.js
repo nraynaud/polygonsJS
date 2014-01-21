@@ -43,38 +43,26 @@ function createSkeleton(polygon) {
         return [segment[1], segment[0]];
     }
 
-    function PerpendicularRay(vertex, direction, firstSite, secondSite) {
-        this.origin = vertex;
-        this.segment = [vertex, direction];
-        this.firstSite = firstSite;
-        this.secondSite = secondSite;
-    }
-
-    PerpendicularRay.prototype = {
-        representation: function () {
-            return polylines2path([(this.aheadPoint ? [this.origin, this.aheadPoint] : this.segment)]);
-        },
-        behindRepresentation: function () {
-            return polylines2path([
-                [this.behindPoint, this.origin]
-            ]);
-        },
-        sitesRepresentation: function () {
-            return this.firstSite.representation() + this.secondSite.representation();
-        },
-        filterPointCandidate: function (point) {
-            return true;
-        }
-    };
-
-    function BisectorRay(origin, direction, firstSite, secondSite) {
+    /**
+     *
+     * @param origin
+     * @param direction
+     * @param firstSite
+     * @param secondSite
+     * @param [candidateFilter]
+     * @constructor
+     */
+    function LinearRay(origin, direction, firstSite, secondSite, candidateFilter) {
         this.origin = origin;
         this.segment = [origin, direction];
         this.firstSite = firstSite;
         this.secondSite = secondSite;
+        this.filterPointCandidate = candidateFilter ? candidateFilter : function () {
+            return true;
+        };
     }
 
-    BisectorRay.prototype = {
+    LinearRay.prototype = {
         representation: function () {
             return polylines2path([(this.aheadPoint ? [this.origin, this.aheadPoint] : this.segment)]);
         },
@@ -85,9 +73,6 @@ function createSkeleton(polygon) {
         },
         sitesRepresentation: function () {
             return this.firstSite.representation() + this.secondSite.representation();
-        },
-        filterPointCandidate: function (point) {
-            return pointProjectsOnSegments([this.firstSite.segment, this.secondSite.segment], point);
         }
     };
 
@@ -187,6 +172,13 @@ function createSkeleton(polygon) {
         return  ray.firstSite.coveredEdges().concat(ray.secondSite.coveredEdges());
     }
 
+    function igniteVertexSegment(vertexSite, lineSite, origin, firstSite, secondSite) {
+        var segment = lineSite.segment;
+        if (segment[1] == vertexSite.vertex || segment[0] == vertexSite.vertex)
+            return new LinearRay(vertexSite.vertex, perpendicularPoint(vertexSite.vertex, segment), firstSite, secondSite);
+        return new ParabolicRay(vertexSite.vertex, lineSite, origin, firstSite, secondSite);
+    }
+
     function LineSite(segment) {
         this.segment = segment;
     }
@@ -206,14 +198,14 @@ function createSkeleton(polygon) {
             }
             var bVector = bisectorVectorFromSegments(reversedSegment(this.segment), followingLineSite.segment);
             var bPoint = {x: edgesIntersection.x + bVector.x, y: edgesIntersection.y + bVector.y};
-            return new BisectorRay(origin, bPoint, this, followingLineSite);
+            var segment1 = this.segment;
+            var segment2 = followingLineSite.segment;
+            return new LinearRay(origin, bPoint, this, followingLineSite, function (point) {
+                return pointProjectsOnSegments([segment1, segment2], point);
+            });
         },
         igniteRayWithReflexVertexSite: function (followingVertexSite, origin) {
-            if (this.segment[1] == followingVertexSite.vertex)
-                return new PerpendicularRay(followingVertexSite.vertex, perpendicularPoint(followingVertexSite.vertex, this.segment), this, followingVertexSite);
-            if (this.segment[0] == followingVertexSite.vertex)
-                return new PerpendicularRay(followingVertexSite.vertex, perpendicularPoint(followingVertexSite.vertex, this.segment), this, followingVertexSite);
-            return new ParabolicRay(followingVertexSite.vertex, this, origin, this, followingVertexSite);
+            return igniteVertexSegment(followingVertexSite, this, origin, this, followingVertexSite);
         },
         sqDistanceFromPoint: function (point) {
             return distToSegmentSquared(point, this.segment);
@@ -240,22 +232,10 @@ function createSkeleton(polygon) {
             return previousSite.igniteRayWithReflexVertexSite(this, origin);
         },
         igniteRayWithLineSite: function (followingLineSite, origin) {
-            var segment = followingLineSite.segment;
-            if (segment[0] == this.vertex)
-                return new PerpendicularRay(this.vertex, perpendicularPoint(this.vertex, segment), this, followingLineSite);
-            if (segment[1] == this.vertex)
-                return new PerpendicularRay(this.vertex, perpendicularPoint(this.vertex, segment), this, followingLineSite);
-            return new ParabolicRay(this.vertex, followingLineSite, origin, this, followingLineSite);
+            return igniteVertexSegment(this, followingLineSite, origin, this, followingLineSite);
         },
         igniteRayWithReflexVertexSite: function (nextSite, origin) {
-            var perpendicularRay = new PerpendicularRay(origin, perpendicularPoint(origin, [this.vertex, nextSite.vertex]), this, nextSite);
-            svgDisplayTable([
-                {label: 'vertex vertex', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: perpendicularRay.representation()}
-                ])}
-            ]);
-            return perpendicularRay;
+            return new LinearRay(origin, perpendicularPoint(origin, [this.vertex, nextSite.vertex]), this, nextSite);
         },
         ignitePerpendicularRays: function () {
             var ray1 = this.previousEdge.igniteRayWithReflexVertexSite(this);
@@ -393,7 +373,6 @@ function createSkeleton(polygon) {
             remainingOrigins.push(current.origin);
         });
 
-        console.log('--');
         var deleteList = [];
         skelPoints = [];
         rayList.iterate(function (currentBucket) {
