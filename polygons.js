@@ -17,6 +17,14 @@ function pointInPolygon(point, polygon) {
     return inside;
 }
 
+function commonVertex(segment1, segment2) {
+    if(pointEquals(segment1[0], segment2[0]) || pointEquals(segment1[0], segment2[1]))
+        return segment1[0];
+    if (pointEquals(segment1[1], segment2[0]) || pointEquals(segment1[1], segment2[1]))
+        return segment1[1];
+    return null
+}
+
 function vectLength(x, y) {
     return Math.sqrt(sqVectorLength(x, y));
 }
@@ -45,7 +53,11 @@ function unitVector(inVector) {
 function bisectorVector(v1, v2) {
     var l1 = vectLength(v1.x, v1.y);
     var l2 = vectLength(v2.x, v2.y);
-    return {x: l2 * v1.x + l1 * v2.x, y: l2 * v1.y + l1 * v2.y};
+    var x = l2 * v1.x + l1 * v2.x;
+    var y = l2 * v1.y + l1 * v2.y;
+    if (x == 0 && y == 0)
+        return {x: v1.y, y: -v1.x};
+    return {x: x, y: y};
 }
 
 function segmentToVector(segment) {

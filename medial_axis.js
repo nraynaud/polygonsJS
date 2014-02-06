@@ -302,10 +302,6 @@ function createSkeleton(polygon) {
         return signedArea([previousVertex, vertex, nextVertex]) * polygonArea < 0;
     }
 
-    function isFlatVertex(vertex, previousVertex, nextVertex, polygonArea) {
-        return signedArea([previousVertex, vertex, nextVertex]) * polygonArea == 0;
-    }
-
     var reflexPoints = [];
     for (i = 0; i < polygon.length; i++) {
         var previousPoint = polygon[(i + polygon.length - 1) % polygon.length];
@@ -318,17 +314,8 @@ function createSkeleton(polygon) {
         if (isReflexVertex(vertex, previousPoint, nextPoint, area)) {
             vertex.reflex = true;
             reflexPoints.push(vertex);
-            var previousEdge = previousPoint.nextEdge;
-            var site = new ReflexVertexSite(vertex, previousEdge, vertex.nextEdge);
-            Array.prototype.push.apply(rays, site.ignitePerpendicularRays());
-        } else if (isFlatVertex(vertex, previousPoint, nextPoint, area)) {
-            svgDisplayTable([
-                {label: 'flat vertex', content: pathList2svg([
-                    {d: polygon2path(polygon)},
-                    {cssClass: 'red', d: pointArray2path([vertex])}
-                ])}
-            ]);
-            throw new Error('Flat vertices are not supported yet. Found one at index ' + i);
+            var reflexVertexSite = new ReflexVertexSite(vertex, previousPoint.nextEdge, vertex.nextEdge);
+            Array.prototype.push.apply(rays, reflexVertexSite.ignitePerpendicularRays());
         } else
             rays.push(previousPoint.nextEdge.igniteRayWithLineSite(vertex.nextEdge, vertex, vertex));
     }
@@ -464,7 +451,7 @@ function createSkeleton(polygon) {
     while (!run() && startCount--);
 }
 
-test('medial axis1', function () {
+test('medial axis1, 3 reflex points', function () {
     createSkeleton([
         p(10, 10),
         p(100, 10),
@@ -475,7 +462,7 @@ test('medial axis1', function () {
         p(20, 100)
     ]);
 });
-test('medial axis2', function () {
+test('medial axis2, 1 reflex point', function () {
     createSkeleton([
         p(10, 10),
         p(100, 10),
@@ -486,7 +473,7 @@ test('medial axis2', function () {
 });
 
 
-test('medial axis3', function () {
+test('medial axis3, convex polygon', function () {
     createSkeleton([
         p(10, 10),
         p(100, 10),
@@ -498,7 +485,7 @@ test('medial axis3', function () {
     ]);
 });
 
-test('medial axis4', function () {
+test('medial axis4, rectangle', function () {
     createSkeleton([
         p(10, 10),
         p(100, 10),
@@ -507,7 +494,7 @@ test('medial axis4', function () {
     ]);
 });
 
-test('medial axis5', function () {
+test('medial axis5, convex polygon', function () {
 
     var p2 = [
         [326, 361],
@@ -530,5 +517,24 @@ test('medial axis5', function () {
         polygon2.push(p((p2[i][0] - 326) / 2, (p2[i][1] - 220) / 2));
     }
     createSkeleton(polygon2);
+});
 
+test('medial axis6, rectangle with flat vertices', function () {
+    createSkeleton([
+        p(10, 10),
+        p(100, 10),
+        p(100, 20),
+        p(100, 30),
+        p(100, 40),
+        p(100, 50),
+        p(100, 60),
+        p(100, 100),
+        p(100, 140),
+        p(10, 140),
+        p(10, 60),
+        p(10, 50),
+        p(10, 40),
+        p(10, 30),
+        p(10, 20)
+    ]);
 });
