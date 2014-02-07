@@ -189,10 +189,11 @@ function solveEquations(creator, solutionsFilter) {
             rhs.push(-equation.c);
         }
         var result = numeric.solve(matrix, rhs);
-        if (isFinite(result[0]) && isFinite(result[1]) && isFinite(result[2]))
-            return [
-                {x: result[0], y: result[1], r: result[2]}
-            ];
+        if (isFinite(result[0]) && isFinite(result[1]) && isFinite(result[2])) {
+            var res = {x: result[0], y: result[1], r: result[2]};
+            if (solutionsFilter(res))
+                return [res];
+        }
         return [];
     }
 
@@ -282,8 +283,6 @@ test('PLL solver parallel', function () {
     var s2 = [p(100, 140), p(100, 10)];
     var vertex = p(25, 100);
     var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
-
-    console.log(result);
     var resultsDisplay = '';
     for (var i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);

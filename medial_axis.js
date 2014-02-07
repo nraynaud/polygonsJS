@@ -97,7 +97,7 @@ function createSkeleton(polygon) {
         behindRepresentation: function () {
             var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
             var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
-            return polylines2path([segmentParabola([p1, p2], this.vertex)]);
+            return p1&&p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
         },
         filterPointCandidate: function (point) {
             return pointProjectsOnSegments([this.edge.segment], point);
@@ -156,7 +156,10 @@ function createSkeleton(polygon) {
                     rejectedPoint2.push(point);
                 return result;
             });
-            selectionComment = result.length;
+
+            selectionComment = '(' + result.length + ' solutions ' + JSON.stringify(result) + ')';
+            if (result.length)
+                selectionComment += pointInPolygon(result[0], polygon);
         }
         setIntersection(current, result[0], next);
         svgDisplayTable([
@@ -199,9 +202,8 @@ function createSkeleton(polygon) {
             var bVector = bisectorVectorFromSegments(reversedSegment(this.segment), followingLineSite.segment);
             var bPoint = {x: edgesIntersection.x + bVector.x, y: edgesIntersection.y + bVector.y};
             var segment1 = this.segment;
-            var segment2 = followingLineSite.segment;
             return new LinearRay(origin, bPoint, this, followingLineSite, function (point) {
-                return pointProjectsOnSegments([segment1, segment2], point);
+                return pointProjectsOnSegments([segment1], point);
             });
         },
         igniteRayWithReflexVertexSite: function (followingVertexSite, origin) {
@@ -348,13 +350,6 @@ function createSkeleton(polygon) {
         rayList.iterate(function (currentBucket) {
             var current = currentBucket.val;
             var next = currentBucket.next.val;
-            svgDisplayTable([
-                {label: 'rays ', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon) },
-                    {d: next.representation()},
-                    {cssClass: 'blue', d: current.representation()}
-                ])}
-            ]);
             intersectNextRay(current, next);
             currentRays += current.representation();
             remainingOrigins.push(current.origin);
@@ -447,8 +442,7 @@ function createSkeleton(polygon) {
         return rayList.isEmpty() || stop;
     }
 
-    var startCount = 10;
-    while (!run() && startCount--);
+    while (!run());
 }
 
 test('medial axis1, 3 reflex points', function () {
@@ -537,4 +531,57 @@ test('medial axis6, rectangle with flat vertices', function () {
         p(10, 30),
         p(10, 20)
     ]);
+});
+
+test('snake', function () {
+    var poly = [p(458, 39),
+        p(458, 39),
+        p(395, 46),
+        p(308, 76),
+        p(141, 64),
+        p(100, 80),
+        p(234, 89),
+        p(343, 99),
+        p(400, 115),
+        p(405, 66),
+        p(423, 50),
+        p(419, 135),
+        p(378, 205),
+        p(337, 201),
+        p(72, 185),
+        p(73, 205),
+        p(306, 213),
+        p(375, 226),
+        p(412, 261),
+        p(343, 326),
+        p(233, 330),
+        p(74, 344),
+        p(57, 316),
+        p(133, 290),
+        p(290, 291),
+        p(366, 232),
+        p(296, 222),
+        p(172, 246),
+        p(41, 214),
+        p(35, 178),
+        p(197, 171),
+        p(350, 194),
+        p(398, 140),
+        p(326, 117),
+        p(155, 92),
+        p(28, 138),
+        p(22, 71),
+        p(113, 52),
+        p(277, 64),
+        p(326, 35),
+        p(391, 25),
+        p(456, 23),
+        p(498, 15)
+    ];
+    for (var i = 0; i < poly.length; i++) {
+        var point = poly[i];
+        point.x /= 2.5;
+        point.y /= 2.5;
+    }
+    createSkeleton(poly);
 });
