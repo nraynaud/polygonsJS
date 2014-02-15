@@ -1,7 +1,51 @@
+"use strict";
+function pointOnParabola(t, directrix, focus) {
+    // http://alecmce.com/category/math
+    var directrixVector = {x: directrix[0].x - directrix[1].x, y: directrix[0].y - directrix[1].y};
+    var pt = {x: directrix[0].x * (1 - t) + directrix[1].x * t, y: directrix[0].y * (1 - t) + directrix[1].y * t};
+    var ptToFocus = {x: focus.x - pt.x, y: focus.y - pt.y};
+    var dist = sqVectorLength(ptToFocus.x, ptToFocus.y) / (2 * (directrixVector.x * ptToFocus.y - directrixVector.y * ptToFocus.x));
+    if (isFinite(dist))
+        return {x: pt.x - directrixVector.y * dist, y: pt.y + directrixVector.x * dist};
+    return null;
+}
+
+function segmentParabola(directrix, focus) {
+    var pts = [];
+    for (var i = 0; i <= 1; i += 0.1) {
+        var point = pointOnParabola(i, directrix, focus);
+        if (point)
+            pts.push(point);
+    }
+    return pts;
+}
+
 function createSkeletonWithDisplay(polygon) {
 
+    function raySitesRepresentation(ray) {
+        return ray.firstSite.representation() + ray.secondSite.representation();
+    }
+
+    medialAxis.ReflexVertexSite.prototype.representation = function () {
+        return pointArray2path([this.vertex], 2);
+    };
+
+    medialAxis.LineSite.prototype.representation = function () {
+        return polylines2path([this.segment]);
+    };
+    medialAxis.LinearRay.prototype.behindRepresentation = function () {
+        return polylines2path([
+            [this.behindPoint, this.origin]
+        ]);
+    };
+    medialAxis.ParabolicRay.prototype.behindRepresentation = function () {
+        var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
+        var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
+        return p1 && p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
+    };
+
     function representRay(ray) {
-        if (ray instanceof LinearRay)
+        if (ray instanceof medialAxis.LinearRay)
             return polylines2path([(ray.aheadPoint ? [ray.origin, ray.aheadPoint] : ray.segment)]);
         else {
             if (ray.aheadPoint) {
@@ -17,7 +61,7 @@ function createSkeletonWithDisplay(polygon) {
     var currentRays = '';
     var skelPoints = [];
     var skelRepr = '';
-    createSkeleton(polygon, {
+    medialAxis.createSkeleton(polygon, {
         initialized: function (rays, reflexPoints) {
             if (reflexPoints.length)
                 svgDisplayTable([
@@ -119,7 +163,7 @@ test('PLL solver non-parallel', function () {
     var s2 = [p(100, 10), p(100, 140)];
     var vertex = p(40, 100);
 
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex), function () {
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex), function () {
         return true;
     });
     var resultsDisplay = '';
@@ -141,7 +185,7 @@ test('PLL solver perpendicular', function () {
     var s1 = [p(10, 10), p(100, 10)];
     var s2 = [p(100, 10), p(100, 140)];
     var vertex = p(10, 10);
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
     var resultsDisplay = '';
     for (var i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
@@ -158,7 +202,7 @@ test('PLL solver perpendicular', function () {
     s2 = [p(10, 140), p(10, 95) ];
     vertex = p(10, 95);
 
-    result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
     resultsDisplay = '';
     for (i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
@@ -176,7 +220,7 @@ test('PLL solver parallel', function () {
     var s1 = [p(10, 10), p(10, 140)];
     var s2 = [p(100, 140), p(100, 10)];
     var vertex = p(25, 100);
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
     var resultsDisplay = '';
     for (var i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
@@ -196,7 +240,7 @@ test('PLL solver point on side', function () {
     var s1 = [p(10, 10), p(10, 140)];
     var s2 = [p(100, 140), p(100, 10)];
     var vertex = p(10, 50);
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
     var resultsDisplay = '';
     for (var i = 0; i < result.length; i++) {
         var obj = result[i];
@@ -218,7 +262,7 @@ test('PLL solver unstable', function () {
     var s1 = [p(30 / factor, 100 / factor), p(10 / factor, 10 / factor)];
     var s2 = [p(100 / factor, 10 / factor), p(50 / factor, 65 / factor)];
     var vertex = p(50 / factor, 65 / factor);
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
     var resultsDisplay = '';
     for (var i = 0; i < result.length; i++) {
         var obj = result[i];
@@ -238,7 +282,7 @@ test('LLL solver', function () {
     var s2 = [p(100, 10), p(100, 140)];
     var s3 = [p(100, 140), p(10, 140)];
 
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
     svgDisplayTable([
         {label: 'edges and circle', content: pathList2svg([
             {cssClass: 'blue', d: polylines2path([s1, s2, s3])},
@@ -258,7 +302,7 @@ test('LLL solver with flat vertex', function () {
     var s1 = [v1, flatVertex];
     var s2 = [flatVertex, v2];
     var s3 = [v2, v3];
-    var result = solveEquations(new EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
+    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
     svgDisplayTable([
         {label: 'edges and circle', content: pathList2svg([
             {cssClass: 'blue', d: polylines2path([s1, s2, s3]) + pointArray2path([v1, flatVertex, v2, v3])},
