@@ -21,88 +21,69 @@ function segmentParabola(directrix, focus) {
     return pts;
 }
 
-test('parabola', function () {
-    var focus = p(50, 50);
-    var directrix = [p(5, 60), p(60, 5)];
+function raySitesRepresentation(ray) {
+    return ray.firstSite.representation() + ray.secondSite.representation();
+}
 
-    svgDisplayTable([
-        {label: 'focus directrix', content: pathList2svg([
-            {d: polylines2path([directrix]) + pointArray2path([focus]) + polylines2path([segmentParabola(directrix, focus)])}
-        ])}
-    ]);
-});
+function pointProjectsOnSegments(segments, point) {
+    for (var j = 0; j < segments.length; j++)
+        if (!pointProjectedOnSegment(point, segments[j]) || pointEquals(point, segments[j][0]) || pointEquals(point, segments[j][1]))
+            return false;
+    return true;
+}
 
-function createSkeleton(polygon) {
-    var rays = [];
-    var skelPoints = [];
-    var skelRepr = '';
-    var remainingOrigins = [];
+/**
+ * @param origin
+ * @param direction
+ * @param firstSite
+ * @param secondSite
+ * @param [candidateFilter]
+ * @constructor
+ */
+function LinearRay(origin, direction, firstSite, secondSite, candidateFilter) {
+    this.origin = origin;
+    this.segment = [origin, direction];
+    this.firstSite = firstSite;
+    this.secondSite = secondSite;
+    this.filterPointCandidate = candidateFilter ? candidateFilter : function () {
+        return true;
+    };
+}
+
+LinearRay.prototype = {
+    behindRepresentation: function () {
+        return polylines2path([
+            [this.behindPoint, this.origin]
+        ]);
+    }
+};
+
+function ParabolicRay(vertexSite, edgeSite, origin, firstSite, secondSite) {
+    this.origin = origin;
+    this.vertex = vertexSite;
+    this.edge = edgeSite;
+    this.firstSite = firstSite;
+    this.secondSite = secondSite;
+}
+
+ParabolicRay.prototype = {
+    behindRepresentation: function () {
+        var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
+        var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
+        return p1 && p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
+    },
+    filterPointCandidate: function (point) {
+        return pointProjectsOnSegments([this.edge.segment], point);
+    }
+};
+
+function createSkeleton(polygon, observers) {
+    observers = observers ? observers : {};
     var area = signedArea(polygon);
 
     function reversedSegment(segment) {
         return [segment[1], segment[0]];
     }
-
-    function raySitesRepresentation(ray) {
-        return ray.firstSite.representation() + ray.secondSite.representation();
-    }
-
-    /**
-     *
-     * @param origin
-     * @param direction
-     * @param firstSite
-     * @param secondSite
-     * @param [candidateFilter]
-     * @constructor
-     */
-    function LinearRay(origin, direction, firstSite, secondSite, candidateFilter) {
-        this.origin = origin;
-        this.segment = [origin, direction];
-        this.firstSite = firstSite;
-        this.secondSite = secondSite;
-        this.filterPointCandidate = candidateFilter ? candidateFilter : function () {
-            return true;
-        };
-    }
-
-    LinearRay.prototype = {
-        representation: function () {
-            return polylines2path([(this.aheadPoint ? [this.origin, this.aheadPoint] : this.segment)]);
-        },
-        behindRepresentation: function () {
-            return polylines2path([
-                [this.behindPoint, this.origin]
-            ]);
-        }
-    };
-
-    function ParabolicRay(vertexSite, edgeSite, origin, firstSite, secondSite) {
-        this.origin = origin;
-        this.vertex = vertexSite;
-        this.edge = edgeSite;
-        this.firstSite = firstSite;
-        this.secondSite = secondSite;
-    }
-
-    ParabolicRay.prototype = {
-        representation: function () {
-            if (this.aheadPoint) {
-                var p1 = pointProjectedOnSegment(this.aheadPoint, this.edge.segment);
-                var p2 = pointProjectedOnSegment(this.origin, this.edge.segment);
-                return polylines2path([segmentParabola([p1, p2], this.vertex)]);
-            }
-            return polylines2path([segmentParabola(this.edge.segment, this.vertex)]);
-        },
-        behindRepresentation: function () {
-            var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
-            var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
-            return p1&&p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
-        },
-        filterPointCandidate: function (point) {
-            return pointProjectsOnSegments([this.edge.segment], point);
-        }
-    };
 
     function setIntersection(targetRay, intersectionPoint, nextRay) {
         function intersectionDistance(intersection, vertex) {
@@ -124,24 +105,15 @@ function createSkeleton(polygon) {
         return ray.nextRay.secondSite.igniteRayWithPreviousSite(ray.firstSite, ray.aheadPoint);
     }
 
-    function pointProjectsOnSegments(segments, point) {
-        for (var j = 0; j < segments.length; j++)
-            if (!pointProjectedOnSegment(point, segments[j]) || pointEquals(point, segments[j][0]) || pointEquals(point, segments[j][1]))
-                return false;
-        return true;
-    }
-
     function intersectNextRay(current, next) {
         if (current.nextRay == next)
             return;
         var result;
-        var selectionComment;
         var rejectedPointsProjection = [];
         var rejectedPoint2 = [];
-        if (current.neverIntersects == next || next.neverIntersects == current) {
+        if (current.neverIntersects == next || next.neverIntersects == current)
             result = [];
-            selectionComment = 'intersection forbidden'
-        } else {
+        else {
             var eq = new EquationSystemCreator();
             current.firstSite.dropEquation(eq);
             current.secondSite.dropEquation(eq);
@@ -157,18 +129,8 @@ function createSkeleton(polygon) {
                 return result;
             });
 
-            selectionComment = '(' + result.length + ' solutions ' + JSON.stringify(result) + ')';
-            if (result.length)
-                selectionComment += pointInPolygon(result[0], polygon);
         }
         setIntersection(current, result[0], next);
-        svgDisplayTable([
-            {label: 'selection candidate ' + selectionComment, content: pathList2svg([
-                {cssClass: 'gray', d: polygon2path(polygon) + pointArray2path(rejectedPoint2, 3) + pointArray2path(rejectedPointsProjection, 6)},
-                {cssClass: 'blue', d: next.representation() + raySitesRepresentation(next)},
-                {cssClass: 'red', d: current.representation() + raySitesRepresentation(current) + pointArray2path([current.aheadPoint])}
-            ])}
-        ]);
     }
 
     function getCoveredSites(ray) {
@@ -241,7 +203,7 @@ function createSkeleton(polygon) {
         },
         ignitePerpendicularRays: function () {
             var ray1 = this.previousEdge.igniteRayWithReflexVertexSite(this);
-            var ray2 = this.igniteRayWithLineSite(this.nextEdge, vertex);
+            var ray2 = this.igniteRayWithLineSite(this.nextEdge, this.vertex);
             ray1.neverIntersects = ray2;
             ray2.neverIntersects = ray1;
             return [ray1, ray2];
@@ -304,113 +266,67 @@ function createSkeleton(polygon) {
         return signedArea([previousVertex, vertex, nextVertex]) * polygonArea < 0;
     }
 
-    var reflexPoints = [];
-    for (i = 0; i < polygon.length; i++) {
-        var previousPoint = polygon[(i + polygon.length - 1) % polygon.length];
-        var vertex = polygon[i];
-        if (!previousPoint.nextEdge)
-            previousPoint.nextEdge = new LineSite([previousPoint, vertex]);
-        var nextPoint = polygon[(i + 1) % polygon.length];
-        if (!vertex.nextEdge)
-            vertex.nextEdge = new LineSite([vertex, nextPoint]);
-        if (isReflexVertex(vertex, previousPoint, nextPoint, area)) {
-            vertex.reflex = true;
-            reflexPoints.push(vertex);
-            var reflexVertexSite = new ReflexVertexSite(vertex, previousPoint.nextEdge, vertex.nextEdge);
-            Array.prototype.push.apply(rays, reflexVertexSite.ignitePerpendicularRays());
-        } else
-            rays.push(previousPoint.nextEdge.igniteRayWithLineSite(vertex.nextEdge, vertex, vertex));
+    function createInitialRays() {
+        var rays = [];
+        var reflexPoints = [];
+        for (var i = 0; i < polygon.length; i++) {
+            var previousPoint = polygon[(i + polygon.length - 1) % polygon.length];
+            var vertex = polygon[i];
+            if (!previousPoint.nextEdge)
+                previousPoint.nextEdge = new LineSite([previousPoint, vertex]);
+            var nextPoint = polygon[(i + 1) % polygon.length];
+            if (!vertex.nextEdge)
+                vertex.nextEdge = new LineSite([vertex, nextPoint]);
+            if (isReflexVertex(vertex, previousPoint, nextPoint, area)) {
+                vertex.reflex = true;
+                reflexPoints.push(vertex);
+                var reflexVertexSite = new ReflexVertexSite(vertex, previousPoint.nextEdge, vertex.nextEdge);
+                Array.prototype.push.apply(rays, reflexVertexSite.ignitePerpendicularRays());
+            } else
+                rays.push(previousPoint.nextEdge.igniteRayWithLineSite(vertex.nextEdge, vertex, vertex));
+        }
+        if (observers['initialized'])
+            observers['initialized'](rays, reflexPoints);
+        return rays;
     }
-    if (reflexPoints.length)
-        svgDisplayTable([
-            {label: 'reflex points', content: pathList2svg([
-                {d: polygon2path(polygon)},
-                {cssClass: 'red', d: pointArray2path(reflexPoints)}
-            ])}
-        ]);
-    var rayRepresentation = '';
-    for (var i = 0; i < rays.length; i++)
-        rayRepresentation += rays[i].representation();
 
-    svgDisplayTable([
-        {label: 'initial rays', content: pathList2svg([
-            {d: polygon2path(polygon)},
-            {cssClass: 'red', d: rayRepresentation}
-        ])}
-    ]);
+    var rayList = createLinkedList(createInitialRays());
 
-    var rayList = createLinkedList(rays);
-
-    function run() {
+    function run(rayList) {
         var stop = false;
         var hasMoved = false;
-        var newSkelRepresentation = '';
-        var currentRays = '';
-        remainingOrigins = [];
         rayList.iterate(function (currentBucket) {
             var current = currentBucket.val;
             var next = currentBucket.next.val;
             intersectNextRay(current, next);
-            currentRays += current.representation();
-            remainingOrigins.push(current.origin);
         });
-
+        if (observers['raysIntersectionsComputed'])
+            observers['raysIntersectionsComputed'](rayList);
         var deleteList = [];
-        skelPoints = [];
         rayList.iterate(function (currentBucket) {
             var previousRay = currentBucket.prev.val;
             var currentRay = currentBucket.val;
             var nextRay = currentBucket.next.val;
             if (previousRay == nextRay) {
-                console.log('stop 2');
-                newSkelRepresentation += polylines2path([
-                    [currentRay.origin, nextRay.origin]
-                ]);
+                if (observers['last2raysEncountered'])
+                    observers['last2raysEncountered'](currentRay, nextRay);
                 stop = true;
                 return true;
             } else if (currentRay.aheadPoint && currentRay.behind >= currentRay.ahead && nextRay.ahead >= nextRay.behind) {
                 var intersectionPoint = currentRay.aheadPoint;
                 var coveredSites = getCoveredSites(currentRay).concat(getCoveredSites(nextRay));
-                var repr = '';
-                for (i = 0; i < coveredSites.length; i++) {
-                    var obj = coveredSites[i];
-                    repr += obj.representation();
-                }
                 var sqRadius = currentRay.aheadPoint.r * currentRay.aheadPoint.r;
                 for (i = 0; i < polygon.length; i++) {
                     var otherSqrDist = polygon[i].nextEdge.sqDistanceFromPoint(intersectionPoint);
                     if (coveredSites.indexOf(polygon[i].nextEdge) == -1 && otherSqrDist < sqRadius) {
-                        svgDisplayTable([
-                            {label: 'eliminated because of radius', content: pathList2svg([
-                                {cssClass: 'gray', d: polygon2path(polygon) },
-                                {cssClass: 'blue', d: currentRay.representation() + raySitesRepresentation(currentRay)
-                                    + nextRay.representation() + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))},
-                                {cssClass: 'red', d: polygon[i].nextEdge.representation()
-                                    + pointArray2path([intersectionPoint], Math.sqrt(otherSqrDist))}
-                            ])}
-                        ]);
+                        if (observers['eliminatedRadius'])
+                            observers['eliminatedRadius'](currentRay, nextRay, intersectionPoint, sqRadius, polygon[i].nextEdge, otherSqrDist);
                         return false;
                     }
                 }
-
                 var newRay = fuseRay(currentRay);
-                newSkelRepresentation += currentRay.representation() + nextRay.behindRepresentation();
-                skelPoints.push(intersectionPoint);
-                svgDisplayTable([
-                    {label: 'selected intersection', content: pathList2svg([
-                        {cssClass: 'gray', d: polygon2path(polygon) + previousRay.representation()},
-                        {d: previousRay.representation()},
-                        {cssClass: 'blue', d: nextRay.representation()},
-                        {cssClass: 'red', d: currentRay.representation() + pointArray2path([intersectionPoint])}
-                    ])},
-                    {label: 'new ray and corresponding sites', content: pathList2svg([
-                        {cssClass: 'gray', d: polygon2path(polygon)},
-                        {d: raySitesRepresentation(currentRay) + currentRay.representation()},
-                        {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
-                        {cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
-                            + raySitesRepresentation(newRay) + newRay.representation()}
-                    ])}
-                ]);
+                if (observers['rayFused'])
+                    observers['rayFused'](previousRay, nextRay, currentRay, intersectionPoint, sqRadius, newRay);
                 deleteList.push([currentBucket, newRay]);
             }
             return false;
@@ -421,167 +337,14 @@ function createSkeleton(polygon) {
             bucket.val = deleteList[i][1];
             rayList.remove(bucket.next);
         }
-        skelRepr += newSkelRepresentation;
-        svgDisplayTable([
-            {label: 'input step rays, selected intersections in red', content: pathList2svg([
-                {cssClass: 'gray', d: polygon2path(polygon)},
-                {cssClass: 'blue', d: currentRays},
-                {cssClass: 'red', d: pointArray2path(skelPoints, 2)}
-            ])},
-            {label: 'added skeleton parts', content: pathList2svg([
-                {cssClass: 'gray', d: polygon2path(polygon)},
-                {cssClass: 'blue', d: newSkelRepresentation}
-            ])},
-            {label: 'skeleton after step', content: pathList2svg([
-                {cssClass: 'gray', d: polygon2path(polygon)},
-                {cssClass: 'blue', d: skelRepr}
-            ])}
-        ]);
+
+        if (observers['stepFinished'])
+            observers['stepFinished']();
         if (!hasMoved && !stop)
             throw new Error('skeleton has not moved');
         return rayList.isEmpty() || stop;
     }
 
-    while (!run());
+    while (!run(rayList)) {
+    }
 }
-
-test('medial axis1, 3 reflex points', function () {
-    createSkeleton([
-        p(10, 10),
-        p(100, 10),
-        p(50, 65),
-        p(100, 140),
-        p(40, 100),
-        p(10, 140),
-        p(20, 100)
-    ]);
-});
-test('medial axis2, 1 reflex point', function () {
-    createSkeleton([
-        p(10, 10),
-        p(100, 10),
-        p(100, 140),
-        p(40, 100),
-        p(10, 140)
-    ]);
-});
-
-
-test('medial axis3, convex polygon', function () {
-    createSkeleton([
-        p(10, 10),
-        p(100, 10),
-        p(150, 60),
-        p(150, 100),
-        p(100, 140),
-        p(20, 150),
-        p(10, 140)
-    ]);
-});
-
-test('medial axis4, rectangle', function () {
-    createSkeleton([
-        p(10, 10),
-        p(100, 10),
-        p(100, 140),
-        p(10, 140)
-    ]);
-});
-
-test('medial axis5, convex polygon', function () {
-
-    var p2 = [
-        [326, 361],
-        [361, 300],
-        [397, 258],
-        [457, 225],
-        [490, 235],
-        [522, 255],
-        [564, 308],
-        [606, 373],
-        [575, 426],
-        [540, 464],
-        [465, 503],
-        [439, 510],
-        [367, 475],
-        [348, 438]
-    ];
-    var polygon2 = [];
-    for (var i = 0; i < p2.length; i++) {
-        polygon2.push(p((p2[i][0] - 326) / 2, (p2[i][1] - 220) / 2));
-    }
-    createSkeleton(polygon2);
-});
-
-test('medial axis6, rectangle with flat vertices', function () {
-    createSkeleton([
-        p(10, 10),
-        p(100, 10),
-        p(100, 20),
-        p(100, 30),
-        p(100, 40),
-        p(100, 50),
-        p(100, 60),
-        p(100, 100),
-        p(100, 140),
-        p(10, 140),
-        p(10, 60),
-        p(10, 50),
-        p(10, 40),
-        p(10, 30),
-        p(10, 20)
-    ]);
-});
-
-test('snake', function () {
-    var poly = [p(458, 39),
-        p(458, 39),
-        p(395, 46),
-        p(308, 76),
-        p(141, 64),
-        p(100, 80),
-        p(234, 89),
-        p(343, 99),
-        p(400, 115),
-        p(405, 66),
-        p(423, 50),
-        p(419, 135),
-        p(378, 205),
-        p(337, 201),
-        p(72, 185),
-        p(73, 205),
-        p(306, 213),
-        p(375, 226),
-        p(412, 261),
-        p(343, 326),
-        p(233, 330),
-        p(74, 344),
-        p(57, 316),
-        p(133, 290),
-        p(290, 291),
-        p(366, 232),
-        p(296, 222),
-        p(172, 246),
-        p(41, 214),
-        p(35, 178),
-        p(197, 171),
-        p(350, 194),
-        p(398, 140),
-        p(326, 117),
-        p(155, 92),
-        p(28, 138),
-        p(22, 71),
-        p(113, 52),
-        p(277, 64),
-        p(326, 35),
-        p(391, 25),
-        p(456, 23),
-        p(498, 15)
-    ];
-    for (var i = 0; i < poly.length; i++) {
-        var point = poly[i];
-        point.x /= 2.5;
-        point.y /= 2.5;
-    }
-    createSkeleton(poly);
-});
