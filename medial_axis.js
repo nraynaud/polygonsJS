@@ -45,7 +45,6 @@ var medialAxis = (function () {
         }
     };
 
-
     function LineSite(segment) {
         this.segment = segment;
     }

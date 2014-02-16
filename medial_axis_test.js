@@ -33,29 +33,27 @@ function createSkeletonWithDisplay(polygon) {
     medialAxis.LineSite.prototype.representation = function () {
         return polylines2path([this.segment]);
     };
+    medialAxis.LinearRay.prototype.representation = function () {
+        return polylines2path([(this.aheadPoint ? [this.origin, this.aheadPoint] : this.segment)]);
+    };
     medialAxis.LinearRay.prototype.behindRepresentation = function () {
         return polylines2path([
             [this.behindPoint, this.origin]
         ]);
+    };
+    medialAxis.ParabolicRay.prototype.representation = function () {
+        if (this.aheadPoint) {
+            var p1 = pointProjectedOnSegment(this.aheadPoint, this.edge.segment);
+            var p2 = pointProjectedOnSegment(this.origin, this.edge.segment);
+            return polylines2path([segmentParabola([p1, p2], this.vertex)]);
+        }
+        return polylines2path([segmentParabola(this.edge.segment, this.vertex)]);
     };
     medialAxis.ParabolicRay.prototype.behindRepresentation = function () {
         var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
         var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
         return p1 && p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
     };
-
-    function representRay(ray) {
-        if (ray instanceof medialAxis.LinearRay)
-            return polylines2path([(ray.aheadPoint ? [ray.origin, ray.aheadPoint] : ray.segment)]);
-        else {
-            if (ray.aheadPoint) {
-                var p1 = pointProjectedOnSegment(ray.aheadPoint, ray.edge.segment);
-                var p2 = pointProjectedOnSegment(ray.origin, ray.edge.segment);
-                return polylines2path([segmentParabola([p1, p2], ray.vertex)]);
-            }
-            return polylines2path([segmentParabola(ray.edge.segment, ray.vertex)]);
-        }
-    }
 
     var newSkelRepresentation = '';
     var currentRays = '';
@@ -72,8 +70,7 @@ function createSkeletonWithDisplay(polygon) {
                 ]);
             var rayRepresentation = '';
             for (var i = 0; i < rays.length; i++)
-                rayRepresentation += representRay(rays[i]);
-
+                rayRepresentation += rays[i].representation();
             svgDisplayTable([
                 {label: 'initial rays', content: pathList2svg([
                     {d: polygon2path(polygon)},
@@ -85,29 +82,29 @@ function createSkeletonWithDisplay(polygon) {
             svgDisplayTable([
                 {label: 'eliminated because of radius', content: pathList2svg([
                     {cssClass: 'gray', d: polygon2path(polygon) },
-                    {cssClass: 'blue', d: representRay(currentRay) + raySitesRepresentation(currentRay)
-                        + representRay(nextRay) + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))},
+                    {cssClass: 'blue', d: currentRay.representation() + raySitesRepresentation(currentRay)
+                        + nextRay.representation() + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))},
                     {cssClass: 'red', d: nextEdge.representation()
                         + pointArray2path([intersectionPoint], Math.sqrt(otherSqrDist))}
                 ])}
             ]);
         },
         rayFused: function (previousRay, nextRay, currentRay, intersectionPoint, sqRadius, newRay) {
-            newSkelRepresentation += representRay(currentRay) + nextRay.behindRepresentation();
+            newSkelRepresentation += currentRay.representation() + nextRay.behindRepresentation();
             skelPoints.push(intersectionPoint);
             svgDisplayTable([
                 {label: 'selected intersection', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon) + representRay(previousRay)},
-                    {d: representRay(previousRay)},
-                    {cssClass: 'blue', d: representRay(nextRay)},
-                    {cssClass: 'red', d: representRay(currentRay) + pointArray2path([intersectionPoint])}
+                    {cssClass: 'gray', d: polygon2path(polygon) + previousRay.representation()},
+                    {d: previousRay.representation()},
+                    {cssClass: 'blue', d: nextRay.representation()},
+                    {cssClass: 'red', d: currentRay.representation() + pointArray2path([intersectionPoint])}
                 ])},
                 {label: 'new ray and corresponding sites', content: pathList2svg([
                     {cssClass: 'gray', d: polygon2path(polygon)},
-                    {d: raySitesRepresentation(currentRay) + representRay(currentRay)},
-                    {cssClass: 'blue', d: representRay(currentRay) + nextRay.behindRepresentation()},
+                    {d: raySitesRepresentation(currentRay) + currentRay.representation()},
+                    {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
                     {cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
-                        + raySitesRepresentation(newRay) + representRay(newRay)}
+                        + raySitesRepresentation(newRay) + newRay.representation()}
                 ])}
             ]);
         },
@@ -122,7 +119,7 @@ function createSkeletonWithDisplay(polygon) {
             skelPoints = [];
             rayList.iterate(function (currentBucket) {
                 var current = currentBucket.val;
-                currentRays += representRay(current);
+                currentRays += current.representation();
             });
         },
         stepFinished: function () {
