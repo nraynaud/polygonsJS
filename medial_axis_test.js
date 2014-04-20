@@ -20,7 +20,9 @@ function segmentParabola(directrix, focus) {
     return pts;
 }
 
-function createSkeletonWithDisplay(polygon) {
+function createSkeletonWithDisplay(polygon, observers) {
+    if (!observers)
+        observers = {};
 
     function raySitesRepresentation(ray) {
         return ray.firstSite.representation() + ray.secondSite.representation();
@@ -31,7 +33,7 @@ function createSkeletonWithDisplay(polygon) {
     };
 
     medialAxis.LineSite.prototype.representation = function () {
-        return polylines2path([this.segment]);
+        return polylines2path([this.segment]) + pointArray2path([this.segment[0]], 1);
     };
     medialAxis.LinearRay.prototype.representation = function () {
         return polylines2path([(this.aheadPoint ? [this.origin, this.aheadPoint] : this.segment)]);
@@ -59,7 +61,7 @@ function createSkeletonWithDisplay(polygon) {
     var currentRays = '';
     var skelPoints = [];
     var skelRepr = '';
-    medialAxis.createSkeleton(polygon, {
+    var root = medialAxis.createSkeleton(polygon, {
         initialized: function (rays, reflexPoints) {
             if (reflexPoints.length)
                 svgDisplayTable([
@@ -101,12 +103,17 @@ function createSkeletonWithDisplay(polygon) {
                 ])},
                 {label: 'new ray and corresponding sites', content: pathList2svg([
                     {cssClass: 'gray', d: polygon2path(polygon)},
-                    {d: raySitesRepresentation(currentRay) + currentRay.representation()},
                     {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
                     {cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
                         + raySitesRepresentation(newRay) + newRay.representation()}
+                ])},
+                {label: 'intersection', content: pathList2svg([
+                    {cssClass: 'gray', d: polygon2path(polygon)},
+                    {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()}
                 ])}
             ]);
+            if (observers['rayFused'])
+                observers['rayFused'](previousRay, nextRay, currentRay, intersectionPoint, sqRadius, newRay);
         },
         last2raysEncountered: function (currentRay, nextRay) {
             console.log('stop 2');
@@ -140,8 +147,139 @@ function createSkeletonWithDisplay(polygon) {
                 ])}
             ]);
             newSkelRepresentation = '';
-        }
+        },
+        afterProcess: observers['afterProcess']
     });
+    var medialAxisRepr = displayMedialAxis(root.origin, root);
+
+    function displayMedialAxis(origin, branch) {
+        if (branch.type == 'limb')
+            return polylines2path([
+                [branch.vertex, origin]
+            ]);
+        var newOrigin = branch.origin;
+        var res = polylines2path([
+            [newOrigin, origin]
+        ]);
+        for (var i = 0; i < branch.children.length; i++)
+            if (branch.children[i] != null)
+                res += displayMedialAxis(newOrigin, branch.children[i]);
+        return res;
+    }
+
+    svgDisplayTable([
+        {label: 'medial axis', content: pathList2svg([
+            {cssClass: 'gray', d: polygon2path(polygon) },
+            {cssClass: 'blue', d: medialAxisRepr}
+        ])}
+    ]);
+}
+
+function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList) {
+    function findRayForPoint(point, site, forbidden) {
+        for (var i = 0; i < site.rays.length; i++) {
+            var ray = site.rays[i];
+            if (forbidden.indexOf(ray) != -1)
+                continue;
+            if (ray.origin == point)
+                return {ray: ray, direction: "forwards", nextPoint: ray.destination};
+            if (ray.destination == point)
+                return {ray: ray, direction: "backwards", nextPoint: ray.origin};
+        }
+        for (i = 0; i < site.backRays.length; i++) {
+            ray = site.backRays[i];
+            if (forbidden.indexOf(ray) != -1)
+                continue;
+            if (ray.origin == point)
+                return {ray: ray, direction: "forwards", nextPoint: ray.destination};
+            if (ray.destination == point)
+                return {ray: ray, direction: "backwards", nextPoint: ray.origin};
+        }
+        return null;
+    }
+
+    var vVerticesMap = {};
+
+    function vVertexForPoint(point) {
+        var key = 'p' + point.x + '|' + point.y;
+        var cached = vVerticesMap[key];
+        if (cached == null) {
+            cached = {point: point, outEdges: []};
+            vVerticesMap[key] = cached;
+        }
+        return cached;
+    }
+
+    function createFace(site, polygon) {
+        function createVEdge(vvertex1, vvertex2, ray, face) {
+            var vEdge = {
+                v1: vvertex1,
+                v2: vvertex2,
+                ray: ray,
+                face: face
+            };
+            for (var i = 0; i < vvertex2.outEdges.length; i++)
+                if (vvertex2.outEdges[i].v1 == vvertex2 && vvertex2.outEdges[i].v2 == vvertex1) {
+                    vEdge.twin = vvertex2.outEdges[i];
+                    vvertex2.outEdges[i].twin = vEdge;
+                }
+            vvertex1.outEdges.push(vEdge);
+            return vEdge;
+        }
+
+        var finalPoint = site instanceof medialAxis.LineSite ? site.segment[0] : site.vertex;
+        var point = site instanceof medialAxis.LineSite ? site.segment[1] : site.vertex;
+        var forbidden = [];
+        var points = [point];
+        var vertices = [vVertexForPoint(point)];
+        var edges = [];
+        var face = {site: site, edges: edges};
+        do {
+            var result = findRayForPoint(point, site, forbidden);
+            forbidden.push(result.ray);
+            point = result.nextPoint;
+            if (result.nextPoint == null)
+                console.log(result);
+            points.push(point);
+            vertices.push(vVertexForPoint(point));
+            var edge = createVEdge(vertices[vertices.length - 2], vertices[vertices.length - 1], result.ray, face);
+            if (edges.length)
+                edges[edges.length - 1].next = edge;
+            edges.push(edge);
+        } while (point != finalPoint);
+        console.log(points);
+        svgDisplayTable([
+            {label: 'face ' + name, content: pathList2svg([
+                {cssClass: 'gray', d: polygon2path(polygon) },
+                {cssClass: 'red', d: site.representation()},
+                {cssClass: 'green', d: polylines2path([points])}
+            ])}
+        ]);
+        console.log(face);
+        return face;
+    }
+
+    var faces = [];
+    siteList.iterate(function (bucket) {
+        faces.push(createFace(bucket.val, polygon));
+    });
+    for (var i = 0; i < faces.length; i++) {
+        var face = faces[i];
+        for (var j = 0; j < face.edges.length; j++) {
+            var edge = face.edges[j];
+            if (edge.twin == null)
+                svgDisplayTable([
+                    {label: 'no twin', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon) },
+                        {cssClass: 'green', d: face.site.representation()},
+                        {cssClass: 'red', d: polylines2path([
+                            [edge.v1.point, edge.v2.point]
+                        ])}
+                    ])}
+                ]);
+        }
+    }
+
 }
 
 test('parabola', function () {
@@ -448,22 +586,44 @@ test('snake', function () {
         point.x /= 2.5;
         point.y /= 2.5;
     }
-    createSkeletonWithDisplay(poly);
+
+    createSkeletonWithDisplay(poly, {
+        afterProcess: extractDCELAfterProcess
+    });
 });
 
 test('cut square with hole', function () {
-    createSkeletonWithDisplay([
-        p(10, 10),
-        p(10, 110),
-        p(110, 110),
-        p(110, 60),
-        p(100, 60),
-        p(100, 100),
-        p(20, 100),
-        p(20, 20),
-        p(100, 20),
-        p(100, 60),
-        p(110, 60),
-        p(110, 10)
-    ]);
+
+    var centerX = 75;
+    var centerY = 75;
+
+    function cp(xdiff, ydiff) {
+        return p(centerX + xdiff, centerY + ydiff);
+    }
+
+    var outerSide = 130;
+    var halfOuterSide = outerSide / 2;
+    var wallThickness = 50;
+
+    var inserted1 = cp(halfOuterSide, 0);
+    var inserted2 = cp(halfOuterSide - wallThickness, 0);
+    var inserted3 = cp(halfOuterSide - wallThickness, 0);
+    var inserted4 = cp(halfOuterSide, 0);
+
+    var polygon = [
+        cp(-halfOuterSide, -halfOuterSide),
+        cp(-halfOuterSide, halfOuterSide),
+        cp(halfOuterSide, halfOuterSide),
+        inserted1,
+        inserted2,
+        cp(halfOuterSide - wallThickness, halfOuterSide - wallThickness),
+        cp(-halfOuterSide + wallThickness, halfOuterSide - wallThickness),
+        cp(-halfOuterSide + wallThickness, -halfOuterSide + wallThickness),
+        cp(halfOuterSide - wallThickness, -halfOuterSide + wallThickness),
+        inserted3,
+        inserted4,
+        cp(halfOuterSide, -halfOuterSide)
+    ];
+    var root = createSkeletonWithDisplay(polygon, {afterProcess: extractDCELAfterProcess});
+
 });
