@@ -4,7 +4,8 @@ function pathList2svg(paths) {
     var content = '';
     for (var i = 0; i < paths.length; i++)
         content += '<path class="' + paths[i].cssClass + '" d="' + paths[i].d + '"/>\n';
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">' + content + '</svg>';
+    var viewBox = test_display_viewBox ? ' viewBox="' + test_display_viewBox + '"' : '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"' + viewBox + '>' + content + '</svg>';
 }
 
 function path2svg(path, cssClass) {

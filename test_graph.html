@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Simple Polygon Medial Axis Computation</title>
+    <link rel="stylesheet" href="qunit-1.12.0.css">
+    <style>
+        .svgTest td {
+            border: solid 1px green;
+        }
+
+        .svgTest th {
+            text-align: center !important; /*some qunit selector use an #id, so we have to force it*/
+        }
+
+        path {
+            fill: none;
+            stroke: black;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .red {
+            stroke: red;
+        }
+
+        .blue {
+            stroke: blue;
+        }
+
+        .gray {
+            stroke: lightgray;
+        }
+
+        .green {
+            stroke: green;
+        }
+
+    </style>
+</head>
+<body>
+The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">https://github.com/nraynaud/polygonsJS/</a>
+
+<div id="qunit"></div>
+<div id="qunit-fixture"></div>
+<script src="qunit-1.12.0.js"></script>
+<script src="jquery-1.10.2.js"></script>
+<script src="numeric-1.2.6.js"></script>
+<script src="polygons.js"></script>
+<script src="solver.js"></script>
+<script src="test_display.js"></script>
+
+</body>
+<script>
+window.test_display_viewBox = '-2000 -500 3500 500';
+
+var points = [];
+function point(x, y) {
+    var p = {x: x, y: y};
+    points.push(p);
+    return  p;
+}
+
+function Vertex(point) {
+    this.point = point;
+    this.leaving = null;
+}
+Vertex.prototype = {
+};
+
+function HalfEdge(face, origin) {
+    this._originVertex = origin;
+    this.twin = null;
+    this._nextEdge = null;
+    this.face = face;
+    face.edge = this;
+    origin.leaving = this;
+}
+
+HalfEdge.prototype = {
+    nextEdge: function () {
+        return this._nextEdge;
+    },
+    previousEdge: function () {
+        var _this = this;
+        var previous = null;
+        this.iterateFace(function (edge) {
+            if (edge.nextEdge() == _this) {
+                previous = edge;
+                return true;
+            }
+        });
+        return previous;
+    },
+    originVertex: function () {
+        return this._originVertex;
+    },
+    destinationVertex: function () {
+        return this.twin.originVertex();
+    },
+    iterateFace: function (handler) {
+        var currentEdge = this;
+        var seenEdges = [];
+        do {
+            if (seenEdges.indexOf(currentEdge) >= 0) {
+                console.log(seenEdges, currentEdge);
+                throw new Error("loop turning around face ! " + this.face.name);
+            }
+            var res = handler(currentEdge);
+            if (res)
+                return;
+            seenEdges.push(currentEdge);
+            currentEdge = currentEdge.nextEdge();
+        } while (this != currentEdge);
+    },
+    findHalfEdgeOriginatingInVertex: function (v1) {
+        var result = null;
+        this.iterateFace(function (currentEdge) {
+            if (currentEdge.originVertex() == v1) {
+                result = currentEdge;
+                return true;
+            }
+        });
+        return result;
+    },
+    getPathToVertex: function (destination) {
+        var result = [];
+        this.iterateFace(function (currentEdge) {
+            result.push(currentEdge);
+            if (currentEdge.destinationVertex() == destination)
+                return true;
+        });
+        if (result.length && result[result.length - 1].nextEdge().originVertex() != destination)
+            return [];
+        return result;
+    }
+};
+
+function Face() {
+    this.edge = null;
+}
+
+Face.prototype = {
+    findHalfEdge: function (v1, v2) {
+        var result = null;
+        this.edge.iterateFace(function (currentEdge) {
+            if (currentEdge.originVertex() == v1 && currentEdge.twin.originVertex() == v2
+                    || currentEdge.originVertex() == v2 && currentEdge.twin.originVertex() == v1) {
+                result = currentEdge;
+                return true;
+            }
+        });
+        return result;
+    },
+    findHalfEdgeStartingAt: function (vertex) {
+        var result = null;
+        this.edge.iterateFace(function (currentEdge) {
+            if (currentEdge.originVertex() == vertex) {
+                result = currentEdge;
+                return true;
+            }
+        });
+        return result;
+    },
+    getVetices: function () {
+        var result = [];
+        this.edge.iterateFace(function (currentEdge) {
+            result.push(currentEdge.originVertex());
+        });
+        return result;
+    },
+    check: function (areaSign) {
+        var result = true;
+        var points = [];
+        var _this = this;
+        this.edge.iterateFace(function (currentEdge) {
+            if (currentEdge == null || currentEdge.face != _this) {
+                result = false;
+                return true;
+            }
+            points.push(currentEdge.originVertex().point);
+        });
+        var area = signedArea(points);
+        return result && (area * areaSign > 0);
+    },
+    containsVertex: function (vertex) {
+        return this.findHalfEdgeStartingAt(vertex) != null;
+    }
+};
+
+var OUTSIDE_FACE = new Face();
+OUTSIDE_FACE.name = 'outside';
+function Graph() {
+    this.vertices = [];
+    this.edges = [];
+    this.faces = [OUTSIDE_FACE];
+
+}
+
+Graph.prototype = {
+    addVertex: function (point) {
+        var vertex = new Vertex(point);
+        this.vertices.push(vertex);
+        return vertex;
+    },
+    createEdge: function (e1Face, e2Face, origV1, origV2) {
+        var h1 = new HalfEdge(e1Face, origV1);
+        var h2 = new HalfEdge(e2Face, origV2);
+        h1.twin = h2;
+        h2.twin = h1;
+        return [h1, h2];
+    },
+    deleteEdge: function (edge, faceToKeep) {
+
+    },
+    insertVertexInEdge: function (edge, point) {
+        var v = this.addVertex(point);
+        var f1 = edge.face;
+        var f2 = edge.twin.face;
+        var previousEdge = edge.previousEdge();
+        var edge2 = edge.twin;
+        var nextEdge2 = edge2._nextEdge;
+        var halves = this.createEdge(f1, f2, edge.originVertex(), v);
+        previousEdge._nextEdge = halves[0];
+        halves[0]._nextEdge = edge;
+        edge._originVertex = v;
+        v.leaving = edge;
+        halves[1]._nextEdge = nextEdge2;
+        edge2._nextEdge = halves[1];
+        return v;
+    },
+    createFaceBySlicing: function (v1, v2, face) {
+        var v1HEdge = face.edge.findHalfEdgeOriginatingInVertex(v1);
+        var routeV1V2 = v1HEdge.getPathToVertex(v2);
+        var v2HEdge = face.edge.findHalfEdgeOriginatingInVertex(v2);
+        var routeV2V1 = v2HEdge.getPathToVertex(v1);
+
+        function checkOrientation(path) {
+            var lastPoint = path[path.length - 1].nextEdge().originVertex().point;
+            return signedArea(path.map(function (edge) {
+                return edge.originVertex().point;
+            }).concat([lastPoint]))
+        }
+
+        var getThem = checkOrientation(routeV1V2) > 0 ? [routeV1V2, routeV2V1] : [routeV2V1, routeV1V2];
+        var selected = getThem[0];
+        var rejected = getThem[1];
+        var from = selected[0].originVertex();
+        var to = rejected[0].originVertex();
+        var newFace = new Face();
+        this.faces.push(newFace);
+        var halves = this.createEdge(newFace, face, to, from);
+        halves[0]._nextEdge = selected[0];
+        selected[selected.length - 1]._nextEdge = halves[0];
+        for (var i = 0; i < selected.length; i++)
+            selected[i].face = newFace;
+        halves[1]._nextEdge = rejected[0];
+        rejected[rejected.length - 1]._nextEdge = halves[1];
+        return newFace;
+    },
+    createFaceNextToEdge: function (edge, newVertex) {
+        if (edge.face.containsVertex(newVertex))
+            return this.createFaceBySlicing(newVertex, edge.nextEdge().destinationVertex() == newVertex ? edge.originVertex() : edge.destinationVertex(), edge.face)
+        var newFace = new Face();
+        this.faces.push(newFace);
+        var face = edge.face;
+        edge.face = newFace;
+        var savedNextEdge = edge.nextEdge();
+        var halves1 = this.createEdge(newFace, face, edge.twin.originVertex(), newVertex);
+        edge._nextEdge = halves1[0];
+        var halves2 = this.createEdge(newFace, face, newVertex, edge.originVertex());
+        halves1[0]._nextEdge = halves2[0];
+        halves2[0]._nextEdge = edge;
+        edge.twin.nextEdge().twin._nextEdge = halves2[1];
+        halves2[1]._nextEdge = halves1[1];
+        halves1[1]._nextEdge = savedNextEdge;
+        return newFace;
+    },
+    divideFace: function (polygonOfVertices, face) {
+        var newFace = new Face();
+        this.faces.push(newFace);
+        var h1s = [];
+        var h2s = [];
+        for (var i = 0; i < polygonOfVertices.length; i++) {
+            var nextI = (i + 1) % polygonOfVertices.length;
+            var halves1 = this.createEdge(newFace, face, polygonOfVertices[i], polygonOfVertices[nextI]);
+            h1s.push(halves1[0]);
+            h2s.push(halves1[1]);
+        }
+        function linkEdges(edges) {
+            for (var i = 0; i < edges.length; i++)
+                edges[i]._nextEdge = edges[(i + 1) % edges.length];
+        }
+
+        linkEdges(h1s);
+        h2s.reverse();
+        linkEdges(h2s);
+        return newFace;
+    }
+};
+
+function pointFromVertex(v) {
+    return v.point;
+}
+
+test('initial situation', function () {
+    var g = new Graph();
+    var farRadius = 50;
+    var far_multiplier = 6;
+
+    var bottomTriangle = -3.0 * farRadius / 2.0;
+    var leftTriangle = 3.0 * Math.sqrt(3.0) * farRadius / 2.0;
+    var gen1 = point(0, 3.0 * farRadius);
+    var gen2 = point(-leftTriangle, bottomTriangle);
+    var gen3 = point(+leftTriangle, bottomTriangle);
+
+    var leftFaceTriangle = 3.0 * Math.sqrt(3.0) * farRadius * far_multiplier / 2.0;
+    var topFaceTriangle = 3.0 * farRadius * far_multiplier / 2.0;
+    var vd1 = point(0, -3.0 * farRadius * far_multiplier);
+    var vd2 = point(leftFaceTriangle, topFaceTriangle);
+    var vd3 = point(-leftFaceTriangle, topFaceTriangle);
+    var v = [point(0, 0), vd1, vd2, vd3].map(g.addVertex, g);
+    var bigFace = g.divideFace([v[1], v[2], v[3]], OUTSIDE_FACE);
+
+    bigFace.name = 'global';
+    var newFace = g.createFaceNextToEdge(bigFace.findHalfEdgeStartingAt(v[1]), v[0]);
+    newFace.name = 'right';
+    newFace = g.createFaceNextToEdge(bigFace.findHalfEdgeStartingAt(v[3]), v[0]);
+    newFace.name = 'bottom';
+    bigFace.name = 'left';
+    for (var i = 0; i < g.faces.length; i++) {
+        var face = g.faces[i].getVetices().map(pointFromVertex);
+        face.push(face[0]);
+        displayMessage(g.faces[i].name);
+        displaySegmentsAndPoint([face], g.vertices.map(pointFromVertex), []);
+        ok(g.faces[i].check(i == 0 ? -1 : 1), "face " + g.faces[i].name + " is checks");
+    }
+});
+
+test('initial situation', function () {
+    var g = new Graph();
+    var farRadius = 50;
+    var far_multiplier = 6;
+
+    var bottomTriangle = -3.0 * farRadius / 2.0;
+    var leftTriangle = 3.0 * Math.sqrt(3.0) * farRadius / 2.0;
+    var gen1 = point(0, 3.0 * farRadius);
+    var gen2 = point(-leftTriangle, bottomTriangle);
+    var gen3 = point(+leftTriangle, bottomTriangle);
+
+    var leftFaceTriangle = 3.0 * Math.sqrt(3.0) * farRadius * far_multiplier / 2.0;
+    var topFaceTriangle = 3.0 * farRadius * far_multiplier / 2.0;
+    var vd1 = point(0, -3.0 * farRadius * far_multiplier);
+    var vd2 = point(leftFaceTriangle, topFaceTriangle);
+    var vd3 = point(-leftFaceTriangle, topFaceTriangle);
+    var v = [point(0, 0), vd1, vd2, vd3].map(g.addVertex, g);
+    var bigFace = g.divideFace([v[1], v[2], v[3]], OUTSIDE_FACE);
+
+    bigFace.name = 'global';
+    var newFace = g.createFaceNextToEdge(bigFace.findHalfEdgeStartingAt(v[1]), v[0]);
+    newFace.name = 'right';
+    newFace = g.createFaceNextToEdge(bigFace.findHalfEdgeStartingAt(v[3]), v[0]);
+    newFace.name = 'bottom';
+    var edge2 = newFace.edge.nextEdge();
+    var v1 = g.insertVertexInEdge(newFace.edge, point(-450, 200));
+    var v2 = g.insertVertexInEdge(edge2, point(450, 200));
+    g.createFaceBySlicing(v1, v2, newFace);
+    bigFace.name = 'left';
+
+    for (var i = 0; i < g.faces.length; i++) {
+        var face = g.faces[i].getVetices().map(pointFromVertex);
+        face.push(face[0]);
+        displayMessage(g.faces[i].name);
+        displaySegmentsAndPoint([face], g.vertices.map(pointFromVertex), []);
+        ok(g.faces[i].check(i == 0 ? -1 : 1), "face " + g.faces[i].name + " is checks");
+    }
+});
+
+</script>
+
+</html>
