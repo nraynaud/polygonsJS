@@ -18,23 +18,6 @@
             stroke: black;
             vector-effect: non-scaling-stroke;
         }
-
-        .red {
-            stroke: red;
-        }
-
-        .blue {
-            stroke: blue;
-        }
-
-        .gray {
-            stroke: lightgray;
-        }
-
-        .green {
-            stroke: green;
-        }
-
     </style>
 </head>
 <body>
@@ -42,6 +25,7 @@
 <img id="img" src="testImage.png" style="display:none;">
 
 <script src="jquery-1.10.2.js"></script>
+<script src="simplify.js"></script>
 <script>
     $(function () {
         var nextId = 1;
@@ -51,51 +35,46 @@
         ctx.drawImage(image, 0, 0, image.width, image.height);
         var imageData = ctx.getImageData(0, 0, image.width, image.height);
 
+        function randomColor() {
+            return 'rgb(' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ')';
+        }
+
         function getPix(x, y) {
             var pixIndex = y * imageData.width + x;
             return !!imageData.data[pixIndex * 4];
         }
 
-        var polygons = [];
-        var roots = [];
-
         function searchInterceptingRanges(x1, x2, candidates, startIndex) {
             var parents = [];
-            for (var i = startIndex; i < candidates.length; i++) {
-                var c = candidates[i];
-                var span = c.span;
-                if (!(span[1] < x1 || span[0] > x2))
-                    parents.push(c);
-            }
+            for (var i = startIndex; i < candidates.length; i++)
+                if (!(candidates[i].right.x < x1 || candidates[i].left.x > x2))
+                    parents.push(candidates[i]);
             return parents;
         }
 
         function setLastChild(node, sucessor) {
+            //if successor the fist child of his parent, then his predecessor is the last child of his parent if he's got any.
             if (sucessor == null || sucessor.isFirstChild || !sucessor.hasParents)
                 node.isLastChild = node.hasParents;
         }
 
         function closeRange(x1, x2, y, currentRange, previousLine, previousRowIndex) {
             var previous = currentRange[currentRange.length - 1];
-            var node = {span: [x1, x2], y: y, children: [], id: nextId++, left: {x: x1, y: y}, right: {x: x2, y: y}};
+            var node = {span: [x1, x2], y: y, id: nextId++, left: {x: x1, y: y}, right: {x: x2, y: y}};
             currentRange.push(node);
             var parents = searchInterceptingRanges(x1, x2, previousLine, previousRowIndex);
             node.parents = parents;
             if (parents.length)
                 node.hasParents = true;
-            if (parents.length && parents[0].children.length == 0) {
+            if (parents.length && !parents[0].hasChildren)
                 node.isFirstChild = true;
-                //if I'm the fist child of my parent, then my predecessor is the last child of his parent.
-                if (previous)
-                    previous.isLastChild = true;
-            }
             if (previous && parents) {
                 var previousLastParent = previous.parents[previous.parents.length - 1];
                 if (previousLastParent && previousLastParent == parents[0])
                     previous.nextSibling = node;
             }
             for (var i = 0; i < parents.length; i++) {
-                parents[i].children.push(node);
+                parents[i].hasChildren = true;
                 if (i + 1 < parents.length)
                     parents[i + 1].previousSibling = parents[i];
             }
@@ -105,79 +84,43 @@
 
         function newPreviousRowIndex(x, currentIndex, previousRow) {
             for (var i = currentIndex; i < previousRow.length; i++)
-                if (!previousRow[i].span[1] < x)
+                if (!previousRow[i].right.x < x)
                     break;
             return i;
         }
 
-        var previousRow = [];
-        for (var j = 0; j < imageData.height; j++) {
-            var previousRowIndex = 0;
-            var currentRow = [];
-            var previousPix = 0;
-            for (var i = 0; i < imageData.width; i++) {
-                var pix = getPix(i, j);
-                if (i != 0 && pix != previousPix) {
-                    previousRowIndex = newPreviousRowIndex(i, previousRowIndex, previousRow);
-                    var startX;
-                    if (pix)
-                        startX = i - 1;
-                    else
-                        closeRange(startX, i, j, currentRow, previousRow, previousRowIndex);
+        function extractContours() {
+            console.time('scan');
+            var polygons = [];
+            var previousRow = [];
+            for (var j = 0; j < imageData.height; j++) {
+                var previousRowIndex = 0;
+                var currentRow = [];
+                var previousPix = 0;
+                for (var i = 0; i < imageData.width; i++) {
+                    var pix = getPix(i, j);
+                    if (i != 0 && pix != previousPix) {
+                        previousRowIndex = newPreviousRowIndex(i, previousRowIndex, previousRow);
+                        var startX;
+                        if (pix)
+                            startX = i - 1;
+                        else
+                            closeRange(startX, i, j, currentRow, previousRow, previousRowIndex);
+                    }
+                    previousPix = pix;
                 }
-                previousPix = pix;
+                if (currentRow.length)
+                    setLastChild(currentRow[currentRow.length - 1], null);
+                if (j - 1 >= 0)
+                    handleRow(previousRow, polygons);
+                previousRow = currentRow;
             }
-            if (currentRow.length)
-                setLastChild(currentRow[currentRow.length - 1], null);
-            if (j - 1 >= 0)
-                handleRow(previousRow);
-            previousRow = currentRow;
+            handleRow(previousRow, polygons);
+            console.timeEnd('scan');
+            return extractPolygons(polygons);
         }
 
-        handleRow(previousRow);
-
-        function paintPix(x, y, color) {
-            ctx.fillStyle = color ? color : "rgba(255, 0, 255, 1)";
-            ctx.fillRect(x, y, 2, 2);
-        }
-
-        function paintNode(node, color) {
-            paintSpan(node.span[0], node.span[1] - node.span[0] + 1, node.y, color);
-        }
-
-        function paintSpan(x1, span, y, color) {
-            ctx.fillStyle = color ? color : "rgb(255, 255, 0)";
-            ctx.fillRect(x1, y, span, 1);
-        }
-
-        function paintLine(pt1, pt2, color) {
-            ctx.strokeStyle = color ? color : "rgb(255, 255, 0)";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(pt1.x, pt1.y);
-            ctx.lineTo(pt2.x, pt2.y);
-            ctx.stroke();
-        }
-
-        function paintFamily(node, found, color) {
-            if (found == null)
-                found = [];
-            if (found[node.id])
-                return;
-            found[node.id] = true;
-            paintNode(node, color);
-            for (var i = 0; i < node.children.length; i++)
-                paintFamily(node.children[i], found);
-            var parents = node.parents;
-            for (i = 0; i < parents.length; i++)
-                paintFamily(parents[i], found);
-        }
-
-        function randomColor() {
-            return 'rgb(' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ')';
-        }
-
-        function creationEvent(span, leftToRight) {
+        function creationEvent(span, leftToRight, polygons) {
             polygons.push({id: 'p' + Math.random(), firstPoint: span.right});
             var polygonIndex = polygons.length - 1;
             if (leftToRight)
@@ -188,7 +131,7 @@
             span.right.next.polygonIndex = polygonIndex;
         }
 
-        function fusionEvent(span, leftToRight) {
+        function fusionEvent(span, leftToRight, polygons) {
             if (leftToRight)
                 span.left.next = span.right;
             else
@@ -196,11 +139,11 @@
             polygons[span.left.next] = polygons[span.left.polygonIndex];
         }
 
-        function handleRow(row) {
+        function handleRow(row, polygons) {
             for (var i = 0; i < row.length; i++) {
                 var span = row[i];
                 if (span.parents.length == 0)
-                    creationEvent(span, false);
+                    creationEvent(span, false, polygons);
                 else {
                     var firstParent = span.parents[0];
                     if (span.isFirstChild) {
@@ -213,38 +156,53 @@
                         span.right.polygonIndex = lastParent.right.polygonIndex;
                     }
                 }
-
-                if (span.children.length == 0)
-                    fusionEvent(span, true);
+                if (!span.hasChildren)
+                    fusionEvent(span, true, polygons);
                 if (span.nextSibling)
-                    creationEvent(span, true);
+                    creationEvent(span, true, polygons);
                 if (span.previousSibling)
-                    fusionEvent(span, false);
+                    fusionEvent(span, false, polygons);
             }
         }
 
-        function doit() {
-            console.log(polygons.length);
+        function extractPolygons(unfilteredPolygons) {
+            console.time('poly filtering');
             var seenPolygons = {};
+            var polygons = [];
+            for (var i = 0; i < unfilteredPolygons.length; i++) {
+                var rawPoly = unfilteredPolygons[i];
+                var poly = [];
+                if (seenPolygons[rawPoly.id])
+                    continue;
+                seenPolygons[rawPoly.id] = true;
+                var current = rawPoly.firstPoint;
+                do {
+                    current = current.next;
+                    poly.push({x: current.x, y: current.y});
+                } while (current != rawPoly.firstPoint);
+                polygons.push(poly);
+            }
+            console.timeEnd('poly filtering');
+            return polygons;
+        }
+
+        function displayPolygons(polygons) {
+            console.log(polygons.length);
+            ctx.lineWidth = 3;
             for (var i = 0; i < polygons.length; i++) {
-                var limit = 3000000;
                 var color = randomColor();
                 var poly = polygons[i];
-                if (seenPolygons[poly.id])
-                    continue;
-                seenPolygons[poly.id] = true;
-                var current = poly.firstPoint;
-                do {
-                    limit--;
-                    paintLine(current, current.next, color);
-                    current = current.next;
-                    if (!current.next || limit <= 0)
-                        break;
-                } while (current != poly.firstPoint && limit >= 0);
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(poly[0].x, poly[0].y);
+                for (var j = 0; j < poly.length; j++)
+                    ctx.lineTo(poly[j].x, poly[j].y);
+                ctx.lineTo(poly[0].x, poly[0].y);
+                ctx.stroke();
             }
         }
 
-        doit();
+        displayPolygons(extractContours());
     });
 </script>
 </body>
