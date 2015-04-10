@@ -1,6 +1,6 @@
 "use strict";
 
-function pathList2svg(paths) {
+function pathList2svg(paths, test_display_viewBox) {
     var content = '';
     for (var i = 0; i < paths.length; i++)
         content += '<path class="' + paths[i].cssClass + '" d="' + paths[i].d + '"/>\n';
