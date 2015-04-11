@@ -46,43 +46,51 @@
 
         function searchInterceptingRanges(x1, x2, candidates, startIndex) {
             var parents = [];
-            for (var i = startIndex; i < candidates.length; i++)
+            for (var i = startIndex; i < candidates.length; i++) {
+                //we're too far right to find anything relevant, let's piss out.
+                if (candidates[i].left.x > x2)
+                    break;
                 if (!(candidates[i].right.x < x1 || candidates[i].left.x > x2))
                     parents.push(candidates[i]);
+            }
             return parents;
         }
 
         function setLastChild(node, sucessor) {
-            //if successor the fist child of his parent, then his predecessor is the last child of his parent if he's got any.
+            //if successor is the fist child of his parent, then his predecessor is the last child of his parent if he's not an orphan.
             if (sucessor == null || sucessor.isFirstChild || !sucessor.hasParents)
                 node.isLastChild = node.hasParents;
         }
 
-        function closeRange(x1, x2, y, currentRange, previousLine, previousRowIndex) {
-            var previous = currentRange[currentRange.length - 1];
-            var node = {span: [x1, x2], y: y, id: nextId++, left: {x: x1, y: y}, right: {x: x2, y: y}};
-            currentRange.push(node);
-            var parents = searchInterceptingRanges(x1, x2, previousLine, previousRowIndex);
-            node.parents = parents;
-            if (parents.length)
+        function closeRange(x1, x2, y, currentRow, parentRow, parentRowIndex, previousLastParent) {
+            var previous = currentRow[currentRow.length - 1];
+            var node = {id: nextId++, left: {x: x1, y: y}, right: {x: x2, y: y}};
+            currentRow.push(node);
+            var parents = searchInterceptingRanges(x1, x2, parentRow, parentRowIndex);
+            var firstParent = parents[0];
+            if (parents.length) {
                 node.hasParents = true;
-            if (parents.length && !parents[0].hasChildren)
+                node.firstParentLeft = firstParent.left;
+            }
+            if (parents.length && !firstParent.hasChildren)
                 node.isFirstChild = true;
             if (previous && parents) {
-                var previousLastParent = previous.parents[previous.parents.length - 1];
-                if (previousLastParent && previousLastParent == parents[0])
+                if (previousLastParent && previousLastParent == firstParent)
                     previous.nextSibling = node;
             }
             for (var i = 0; i < parents.length; i++) {
                 parents[i].hasChildren = true;
-                if (i + 1 < parents.length)
+                if (parents.length > i + 1)
                     parents[i + 1].previousSibling = parents[i];
+                node.lastParentRight = parents[i].right;
             }
             if (previous)
                 setLastChild(previous, node);
+            return parents[parents.length - 1];
         }
 
-        function newPreviousRowIndex(x, currentIndex, previousRow) {
+        // find the rightmost span that can't possibly overlap X, we'll start searching for parents from this index
+        function newParentRowIndex(x, currentIndex, previousRow) {
             for (var i = currentIndex; i < previousRow.length; i++)
                 if (!previousRow[i].right.x < x)
                     break;
@@ -93,6 +101,7 @@
             console.time('scan');
             var polygons = [];
             var previousRow = [];
+            var previousLastParent = null;
             for (var j = 0; j < imageData.height; j++) {
                 var previousRowIndex = 0;
                 var currentRow = [];
@@ -100,12 +109,12 @@
                 for (var i = 0; i < imageData.width; i++) {
                     var pix = getPix(i, j);
                     if (i != 0 && pix != previousPix) {
-                        previousRowIndex = newPreviousRowIndex(i, previousRowIndex, previousRow);
+                        previousRowIndex = newParentRowIndex(i, previousRowIndex, previousRow);
                         var startX;
                         if (pix)
                             startX = i - 1;
                         else
-                            closeRange(startX, i, j, currentRow, previousRow, previousRowIndex);
+                            previousLastParent = closeRange(startX, i, j, currentRow, previousRow, previousRowIndex, previousLastParent);
                     }
                     previousPix = pix;
                 }
@@ -123,37 +132,29 @@
         function creationEvent(span, leftToRight, polygons) {
             polygons.push({id: 'p' + Math.random(), firstPoint: span.right});
             var polygonIndex = polygons.length - 1;
-            if (leftToRight)
-                span.right.next = span.nextSibling.left;
-            else
-                span.right.next = span.left;
+            span.right.next = leftToRight ? span.nextSibling.left : span.left;
             span.right.polygonIndex = polygonIndex;
             span.right.next.polygonIndex = polygonIndex;
         }
 
         function fusionEvent(span, leftToRight, polygons) {
-            if (leftToRight)
-                span.left.next = span.right;
-            else
-                span.left.next = span.previousSibling.right;
+            span.left.next = leftToRight ? span.right : span.previousSibling.right;
             polygons[span.left.next] = polygons[span.left.polygonIndex];
         }
 
         function handleRow(row, polygons) {
             for (var i = 0; i < row.length; i++) {
                 var span = row[i];
-                if (span.parents.length == 0)
+                if (!span.hasParents)
                     creationEvent(span, false, polygons);
                 else {
-                    var firstParent = span.parents[0];
                     if (span.isFirstChild) {
-                        firstParent.left.next = span.left;
-                        span.left.polygonIndex = firstParent.left.polygonIndex;
+                        span.firstParentLeft.next = span.left;
+                        span.left.polygonIndex = span.firstParentLeft.polygonIndex;
                     }
-                    var lastParent = span.parents[span.parents.length - 1];
                     if (span.isLastChild) {
-                        span.right.next = lastParent.right;
-                        span.right.polygonIndex = lastParent.right.polygonIndex;
+                        span.right.next = span.lastParentRight;
+                        span.right.polygonIndex = span.lastParentRight.polygonIndex;
                     }
                 }
                 if (!span.hasChildren)
