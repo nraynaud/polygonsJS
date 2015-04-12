@@ -15,15 +15,17 @@
 
         path {
             fill: none;
-            stroke: black;
+            stroke: red;
             vector-effect: non-scaling-stroke;
         }
     </style>
 </head>
 <body>
-<canvas id="canvas" width="1811" height="1181"></canvas>
+<canvas id="canvas" width="1811" height="1181" style="position:absolute;left:0px; top:0px;"></canvas>
 <img id="img" src="testImage.png" style="display:none;">
 
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width='1811px' height='1181px'
+     style="position:absolute; left:0; top:0;"></svg>
 <script src="jquery-1.10.2.js"></script>
 <script src="simplify.js"></script>
 <script>
@@ -67,17 +69,15 @@
             var node = {id: nextId++, left: {x: x1, y: y}, right: {x: x2, y: y}};
             currentRow.push(node);
             var parents = searchInterceptingRanges(x1, x2, parentRow, parentRowIndex);
-            var firstParent = parents[0];
             if (parents.length) {
+                var firstParent = parents[0];
                 node.hasParents = true;
                 node.firstParentLeft = firstParent.left;
-            }
-            if (parents.length && !firstParent.hasChildren)
-                node.isFirstChild = true;
-            if (previous && parents) {
-                if (previousLastParent && previousLastParent == firstParent)
+                node.isFirstChild = !firstParent.hasChildren;
+                if (previous && previousLastParent && previousLastParent == firstParent)
                     previous.nextSibling = node;
             }
+
             for (var i = 0; i < parents.length; i++) {
                 parents[i].hasChildren = true;
                 if (parents.length > i + 1)
@@ -133,13 +133,14 @@
             polygons.push({id: 'p' + Math.random(), firstPoint: span.right});
             var polygonIndex = polygons.length - 1;
             span.right.next = leftToRight ? span.nextSibling.left : span.left;
+            span.right.next.previous = span.right;
             span.right.polygonIndex = polygonIndex;
             span.right.next.polygonIndex = polygonIndex;
         }
 
         function fusionEvent(span, leftToRight, polygons) {
             span.left.next = leftToRight ? span.right : span.previousSibling.right;
-            polygons[span.left.next] = polygons[span.left.polygonIndex];
+            polygons[span.left.next.polygonIndex] = polygons[span.left.polygonIndex];
         }
 
         function handleRow(row, polygons) {
@@ -149,12 +150,28 @@
                     creationEvent(span, false, polygons);
                 else {
                     if (span.isFirstChild) {
-                        span.firstParentLeft.next = span.left;
-                        span.left.polygonIndex = span.firstParentLeft.polygonIndex;
+                        var fplpX = span.firstParentLeft.previous.x;
+                        var fplX = span.firstParentLeft.x;
+                        var x = span.left.x;
+                        if (x < fplX && (fplpX == fplX || fplpX == x) || fplX == x && fplpX < x) {
+                            span.left.previous = span.firstParentLeft.previous;
+                            span.firstParentLeft.previous.next = span.left;
+                        } else {
+                            span.firstParentLeft.next = span.left;
+                            span.left.previous = span.firstParentLeft;
+                        }
+                        span.left.polygonIndex = span.left.previous.polygonIndex;
                     }
                     if (span.isLastChild) {
-                        span.right.next = span.lastParentRight;
-                        span.right.polygonIndex = span.lastParentRight.polygonIndex;
+                        var lprnX = span.lastParentRight.next.x;
+                        var lprX = span.lastParentRight.x;
+                        x = span.right.x;
+                        if (lprnX > x && lprX == x || x > lprX && (lprnX == x || lprnX == lprX)) {
+                            span.right.next = span.lastParentRight.next;
+                        } else {
+                            span.right.next = span.lastParentRight;
+                        }
+                        span.right.polygonIndex = span.right.next.polygonIndex;
                     }
                 }
                 if (!span.hasChildren)
@@ -188,6 +205,7 @@
         }
 
         function displayPolygons(polygons) {
+            var str = "";
             console.log(polygons.length);
             ctx.lineWidth = 3;
             for (var i = 0; i < polygons.length; i++) {
@@ -196,8 +214,15 @@
                 ctx.strokeStyle = color;
                 ctx.beginPath();
                 ctx.moveTo(poly[0].x, poly[0].y);
-                for (var j = 0; j < poly.length; j++)
-                    ctx.lineTo(poly[j].x, poly[j].y);
+                var def = '';
+                for (var j = 0; j < poly.length; j++) {
+                    def += j == 0 ? 'M' : 'L';
+                    def += poly[j].x + ',' + poly[j].y;
+                    //ctx.lineTo(poly[j].x, poly[j].y);
+                }
+                def += 'Z';
+                str += '<path transform="translate(0.5, 0.5)" stroke="red" stroke-width="0.3" fill="none" d="' + def + '" />\n';
+                $('#svg')[0].innerHTML = str;
                 ctx.lineTo(poly[0].x, poly[0].y);
                 ctx.stroke();
             }
