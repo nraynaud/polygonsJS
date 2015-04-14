@@ -15,16 +15,17 @@
 
         path {
             fill: none;
-            stroke: red;
+            stroke: green;
             vector-effect: non-scaling-stroke;
+            stroke-width = "0.3";
         }
     </style>
 </head>
 <body>
-<canvas id="canvas" width="1811" height="1181" style="position:absolute;left:0px; top:0px;"></canvas>
-<img id="img" src="testImage.png" style="display:none;">
+<canvas id="canvas" width="5421" height="4222" style="position:absolute;left:0px; top:0px;"></canvas>
+<img id="img" src="testscanImage2.png" style="display:none;">
 
-<svg id="svg" xmlns="http://www.w3.org/2000/svg" width='1811px' height='1181px'
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width='5421px' height='4222px'
      style="position:absolute; left:0; top:0;"></svg>
 <script src="jquery-1.10.2.js"></script>
 <script src="simplify.js"></script>
@@ -41,9 +42,13 @@
             return 'rgb(' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ',' + Math.round(Math.random() * 255) + ')';
         }
 
+        var colors = {};
+
         function getPix(x, y) {
             var pixIndex = y * imageData.width + x;
-            return !!imageData.data[pixIndex * 4];
+            var color = imageData.data[pixIndex * 4];
+            colors[color.toString(16)] = true;
+            return !!color;
         }
 
         function searchInterceptingRanges(x1, x2, candidates, startIndex) {
@@ -102,6 +107,7 @@
             var polygons = [];
             var previousRow = [];
             var previousLastParent = null;
+            console.log(imageData.height, imageData.width);
             for (var j = 0; j < imageData.height; j++) {
                 var previousRowIndex = 0;
                 var currentRow = [];
@@ -126,21 +132,19 @@
             }
             handleRow(previousRow, polygons);
             console.timeEnd('scan');
+            console.log('colors', colors);
             return extractPolygons(polygons);
         }
 
         function creationEvent(span, leftToRight, polygons) {
+            console.log('creationEvent');
             polygons.push({id: 'p' + Math.random(), firstPoint: span.right});
-            var polygonIndex = polygons.length - 1;
             span.right.next = leftToRight ? span.nextSibling.left : span.left;
             span.right.next.previous = span.right;
-            span.right.polygonIndex = polygonIndex;
-            span.right.next.polygonIndex = polygonIndex;
         }
 
-        function fusionEvent(span, leftToRight, polygons) {
+        function fusionEvent(span, leftToRight) {
             span.left.next = leftToRight ? span.right : span.previousSibling.right;
-            polygons[span.left.next.polygonIndex] = polygons[span.left.polygonIndex];
         }
 
         function handleRow(row, polygons) {
@@ -151,27 +155,43 @@
                 else {
                     if (span.isFirstChild) {
                         var fplpX = span.firstParentLeft.previous.x;
+                        var fplpY = span.firstParentLeft.previous.y;
                         var fplX = span.firstParentLeft.x;
+                        var fplY = span.firstParentLeft.y;
                         var x = span.left.x;
-                        if (x < fplX && (fplpX == fplX || fplpX == x) || fplX == x && fplpX < x) {
+                        if (!(fplpY < fplY)) {
+                            ctx.fillStyle = 'orange';
+                            ctx.fillRect(span.right.x - 4, span.right.y - 2, 8, 4);
+                        }
+                        if (fplpY < fplY && (x <= fplX && (fplpX == fplX || fplpX == x) || fplX == x && fplpX <= x)) {
                             span.left.previous = span.firstParentLeft.previous;
                             span.firstParentLeft.previous.next = span.left;
+                            ctx.fillStyle = 'blue';
+                            ctx.fillRect(span.left.x, span.left.y - 2, 8, 4);
+
                         } else {
                             span.firstParentLeft.next = span.left;
                             span.left.previous = span.firstParentLeft;
                         }
-                        span.left.polygonIndex = span.left.previous.polygonIndex;
                     }
                     if (span.isLastChild) {
                         var lprnX = span.lastParentRight.next.x;
+                        var lprnY = span.lastParentRight.next.y;
                         var lprX = span.lastParentRight.x;
+                        var lprY = span.lastParentRight.y;
                         x = span.right.x;
-                        if (lprnX > x && lprX == x || x > lprX && (lprnX == x || lprnX == lprX)) {
+                        if (!(lprnY < lprY)) {
+                            ctx.fillStyle = 'orange';
+                            ctx.fillRect(span.right.x - 4, span.right.y - 2, 8, 4);
+                        }
+                        if (lprnY < lprY && (lprnX >= x && lprX == x || x >= lprX && (lprnX == x || lprnX == lprX))) {
                             span.right.next = span.lastParentRight.next;
+                            ctx.fillStyle = 'blue';
+                            ctx.fillRect(span.right.x, span.right.y - 2, 8, 4);
+
                         } else {
                             span.right.next = span.lastParentRight;
                         }
-                        span.right.polygonIndex = span.right.next.polygonIndex;
                     }
                 }
                 if (!span.hasChildren)
@@ -184,19 +204,23 @@
         }
 
         function extractPolygons(unfilteredPolygons) {
+            ctx.fillStyle = 'red';
             console.time('poly filtering');
-            var seenPolygons = {};
             var polygons = [];
+            console.log('polys before filtering', unfilteredPolygons.length);
             for (var i = 0; i < unfilteredPolygons.length; i++) {
                 var rawPoly = unfilteredPolygons[i];
                 var poly = [];
-                if (seenPolygons[rawPoly.id])
-                    continue;
-                seenPolygons[rawPoly.id] = true;
                 var current = rawPoly.firstPoint;
+                if (current.visited)
+                    continue;
                 do {
-                    current = current.next;
+                    current.visited = true;
                     poly.push({x: current.x, y: current.y});
+                    ctx.fillRect(current.x - 3, current.y, 3, 1);
+                    if (current.next == null)
+                        ctx.fillRect(current.x, current.y, 30, 30);
+                    current = current.next;
                 } while (current != rawPoly.firstPoint);
                 polygons.push(poly);
             }
@@ -221,7 +245,7 @@
                     //ctx.lineTo(poly[j].x, poly[j].y);
                 }
                 def += 'Z';
-                str += '<path transform="translate(0.5, 0.5)" stroke="red" stroke-width="0.3" fill="none" d="' + def + '" />\n';
+                str += '<path transform="translate(0.5, 0.5)" d="' + def + '" />\n';
                 $('#svg')[0].innerHTML = str;
                 ctx.lineTo(poly[0].x, poly[0].y);
                 ctx.stroke();
