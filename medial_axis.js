@@ -1,5 +1,5 @@
 "use strict";
-
+// source for the algorithm is here: http://maptools.home.comcast.net/~maptools/Skeleton.pdf
 var medialAxis = (function () {
     var ID_COUNTER = 0;
 
