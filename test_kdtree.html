@@ -50,36 +50,45 @@ The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">http
 <script src="test_display.js"></script>
 <script src="kdtree.js"></script>
 <script>
-    test('find a point behind the border', function () {
-        var points = [p(2, 3), p(5, 4), p(9, 6), p(4, 7), p(8, 1), p(7, 2)].map(pt => p(pt.x * 10, pt.y * 10))
+    var points = [p(2, 3), p(5, 4), p(9, 6), p(4, 7), p(8, 1), p(7, 2)].map(pt => p(pt.x * 10, pt.y * 10))
+    var tree = new KDtree(points)
 
-        var tree = new KDtree(points)
-
-        function getTreeLines(node, min, max) {
-            const result = []
-            if (node === null)
-                return result
-            let line
-            let newLimit
-            if (node.axis === 'x') {
-                const minPoint = p(node.point.x, min)
-                const maxPoint = p(node.point.x, max)
-                line = [minPoint, maxPoint]
-                newLimit = node.point.x
-            } else {
-                const minPoint = p(min, node.point.y)
-                const maxPoint = p(max, node.point.y)
-                line = [minPoint, maxPoint]
-                newLimit = node.point.y
-            }
-            return [...getTreeLines(node.left, 0, newLimit), line, ...getTreeLines(node.right, newLimit, 100)]
+    function getTreeLines(node, min, max) {
+        const result = []
+        if (node === null)
+            return result
+        let line
+        let newLimit
+        if (node.axis === 'x') {
+            const minPoint = p(node.point.x, min)
+            const maxPoint = p(node.point.x, max)
+            line = [minPoint, maxPoint]
+            newLimit = node.point.x
+        } else {
+            const minPoint = p(min, node.point.y)
+            const maxPoint = p(max, node.point.y)
+            line = [minPoint, maxPoint]
+            newLimit = node.point.y
         }
+        return [...getTreeLines(node.left, 0, newLimit), line, ...getTreeLines(node.right, newLimit, 100)]
+    }
 
+    test('create tree', function () {
         displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), points, []);
+    });
 
-        let searchPoint = p(20, 45);
+    test('find a point behind the border', function () {
+        let searchPoint = p(69, 60);
         const result = tree.findNearestNeighbor(searchPoint)
         displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points, searchPoint], [result]);
+    });
+    test('find minimum X', function () {
+        const minX = tree.findMinimum('x')
+        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points], [minX]);
+    });
+    test('find minimum Y', function () {
+        const minY = tree.findMinimum('y')
+        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points], [minY]);
     });
 </script>
 </body>

@@ -23,6 +23,27 @@ class KDtree {
         }
     }
 
+    findMinimum(axis) {
+        return this.findMinimumInTree(this.tree, axis)
+    }
+
+    findMinimumInTree(node, axis) {
+        if (node.axis === axis) {
+            return node.left ? this.findMinimumInTree(node.left, axis) : node.point;
+        }
+        let left = node.left ? this.findMinimumInTree(node.left, axis) : null
+        let right = node.right ? this.findMinimumInTree(node.right, axis) : null
+        const nodes = [left, right, node.point]
+        nodes.sort((p1, p2) => {
+            if (p1 == null)
+                return 1
+            if (p2 == null)
+                return -1
+            return p1[axis] - p2[axis]
+        })
+        return nodes[0]
+    }
+
     findNearestNeighbor(point) {
         return this.findNNInTree(point, this.tree)
     }
