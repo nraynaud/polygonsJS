@@ -35,11 +35,11 @@ var medialAxis = (function () {
                     if (handler(currentBucket))
                         break;
                     currentBucket = currentBucket.next;
-                } while (currentBucket != val);
+                } while (currentBucket !== val);
             },
             remove: function (bucket) {
-                if (val == bucket) {
-                    if (val.next == bucket) {
+                if (val === bucket) {
+                    if (val.next === bucket) {
                         val = null;
                         return;
                     }
@@ -173,7 +173,7 @@ var medialAxis = (function () {
 
     function igniteVertexSegment(vertexSite, lineSite, origin, firstSite, secondSite) {
         var segment = lineSite.segment;
-        if (segment[1] == vertexSite.vertex || segment[0] == vertexSite.vertex)
+        if (segment[1] === vertexSite.vertex || segment[0] === vertexSite.vertex)
             return new LinearRay(vertexSite.vertex, perpendicularPoint(vertexSite.vertex, segment), firstSite, secondSite);
         return new ParabolicRay(vertexSite.vertex, lineSite, origin, firstSite, secondSite);
     }
@@ -186,7 +186,7 @@ var medialAxis = (function () {
             function intersectionDistance(intersection, vertex) {
                 if (intersection) {
                     var len = segLength([intersection, vertex]);
-                    return  len == 0 ? Infinity : len;
+                    return  len === 0 ? Infinity : len;
                 } else
                     return Infinity;
             }
@@ -209,12 +209,12 @@ var medialAxis = (function () {
         }
 
         function intersectNextRay(current, next) {
-            if (current.nextRay == next)
+            if (current.nextRay === next)
                 return;
             var result;
             var rejectedPointsProjection = [];
             var rejectedPoint2 = [];
-            if (current.neverIntersects == next || next.neverIntersects == current)
+            if (current.neverIntersects === next || next.neverIntersects === current)
                 result = [];
             else {
                 var eq = new solver.EquationSystemCreator();
@@ -257,7 +257,7 @@ var medialAxis = (function () {
                 var vertex = polygon[i];
                 if (!previousPoint.nextEdge)
                     previousPoint.nextEdge = new LineSite([previousPoint, vertex]);
-                if (sites.length == 0)
+                if (sites.length === 0)
                     sites.push(previousPoint.nextEdge)
                 var nextPoint = polygon[(i + 1) % polygon.length];
                 if (!vertex.nextEdge)
@@ -295,7 +295,7 @@ var medialAxis = (function () {
             var coveredSites = getCoveredSites(currentRay).concat(getCoveredSites(nextRay));
             for (var i = 0; i < lineSites.length; i++) {
                 var otherSqrDist = lineSites[i].sqDistanceFromPoint(intersectionPoint);
-                if (otherSqrDist < sqRadius && coveredSites.indexOf(lineSites[i]) == -1) {
+                if (otherSqrDist < sqRadius && coveredSites.indexOf(lineSites[i]) === -1) {
                     if (observers['eliminatedRadius'])
                         observers['eliminatedRadius'](currentRay, nextRay, intersectionPoint, sqRadius, lineSites[i], otherSqrDist);
                     return false;
@@ -317,7 +317,7 @@ var medialAxis = (function () {
                 var previousRay = currentBucket.prev.val;
                 var currentRay = currentBucket.val;
                 var nextRay = currentBucket.next.val;
-                if (previousRay == nextRay) {
+                if (previousRay === nextRay) {
                     if (observers['last2raysEncountered'])
                         observers['last2raysEncountered'](currentRay, nextRay);
                     root = {type: 'root', children: [

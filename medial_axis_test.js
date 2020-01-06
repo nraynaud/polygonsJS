@@ -153,7 +153,7 @@ function createSkeletonWithDisplay(polygon, observers) {
     var medialAxisRepr = displayMedialAxis(root.origin, root);
 
     function displayMedialAxis(origin, branch) {
-        if (branch.type == 'limb')
+        if (branch.type === 'limb')
             return polylines2path([
                 [branch.vertex, origin]
             ]);
@@ -179,20 +179,20 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
     function findRayForPoint(point, site, forbidden) {
         for (var i = 0; i < site.rays.length; i++) {
             var ray = site.rays[i];
-            if (forbidden.indexOf(ray) != -1)
+            if (forbidden.indexOf(ray) !== -1)
                 continue;
-            if (ray.origin == point)
+            if (ray.origin === point)
                 return {ray: ray, direction: "forwards", nextPoint: ray.destination};
-            if (ray.destination == point)
+            if (ray.destination === point)
                 return {ray: ray, direction: "backwards", nextPoint: ray.origin};
         }
         for (i = 0; i < site.backRays.length; i++) {
             ray = site.backRays[i];
-            if (forbidden.indexOf(ray) != -1)
+            if (forbidden.indexOf(ray) !== -1)
                 continue;
-            if (ray.origin == point)
+            if (ray.origin === point)
                 return {ray: ray, direction: "forwards", nextPoint: ray.destination};
-            if (ray.destination == point)
+            if (ray.destination === point)
                 return {ray: ray, direction: "backwards", nextPoint: ray.origin};
         }
         return null;
@@ -219,7 +219,7 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
                 face: face
             };
             for (var i = 0; i < vvertex2.outEdges.length; i++)
-                if (vvertex2.outEdges[i].v1 == vvertex2 && vvertex2.outEdges[i].v2 == vvertex1) {
+                if (vvertex2.outEdges[i].v1 === vvertex2 && vvertex2.outEdges[i].v2 === vvertex1) {
                     vEdge.twin = vvertex2.outEdges[i];
                     vvertex2.outEdges[i].twin = vEdge;
                 }
@@ -246,7 +246,7 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
             if (edges.length)
                 edges[edges.length - 1].next = edge;
             edges.push(edge);
-        } while (point != finalPoint);
+        } while (point !== finalPoint);
         console.log(points);
         svgDisplayTable([
             {label: 'face ' + name, content: pathList2svg([

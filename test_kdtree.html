@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Simple KD-tree computation</title>
+    <link rel="stylesheet" href="qunit-1.12.0.css">
+    <style>
+        .svgTest td {
+            border: solid 1px green;
+        }
+
+        .svgTest th {
+            text-align: center !important; /*some qunit selector use an #id, so we have to force it*/
+        }
+
+        path {
+            fill: none;
+            stroke: black;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .red {
+            stroke: red;
+        }
+
+        .blue {
+            stroke: blue;
+        }
+
+        .gray {
+            stroke: lightgray;
+        }
+
+        .green {
+            stroke: green;
+        }
+
+    </style>
+</head>
+<body>
+The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">https://github.com/nraynaud/polygonsJS/</a>
+
+<div id="qunit"></div>
+<div id="qunit-fixture"></div>
+<script src="qunit-1.12.0.js"></script>
+<script src="jquery-1.10.2.js"></script>
+<script src="numeric-1.2.6.js"></script>
+<script src="polygons.js"></script>
+<script src="solver.js"></script>
+<script src="test_display.js"></script>
+<script src="kdtree.js"></script>
+<script>
+    test('find a point behind the border', function () {
+        var points = [p(2, 3), p(5, 4), p(9, 6), p(4, 7), p(8, 1), p(7, 2)].map(pt => p(pt.x * 10, pt.y * 10))
+
+        var tree = new KDtree(points)
+
+        function getTreeLines(node, min, max) {
+            const result = []
+            if (node === null)
+                return result
+            let line
+            let newLimit
+            if (node.axis === 'x') {
+                const minPoint = p(node.point.x, min)
+                const maxPoint = p(node.point.x, max)
+                line = [minPoint, maxPoint]
+                newLimit = node.point.x
+            } else {
+                const minPoint = p(min, node.point.y)
+                const maxPoint = p(max, node.point.y)
+                line = [minPoint, maxPoint]
+                newLimit = node.point.y
+            }
+            return [...getTreeLines(node.left, 0, newLimit), line, ...getTreeLines(node.right, newLimit, 100)]
+        }
+
+        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), points, []);
+
+        let searchPoint = p(20, 45);
+        const result = tree.findNearestNeighbor(searchPoint)
+        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points, searchPoint], [result]);
+    });
+</script>
+</body>
+</html>

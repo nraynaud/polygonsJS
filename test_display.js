@@ -93,10 +93,10 @@ function polygon2path(polygon) {
     return res + ' Z';
 }
 
-function displaySegmentsAndPoint(segments, expectedPoint, resultPoints) {
+function displaySegmentsAndPoint(segments, expectedPoints, resultPoints) {
     displayMessage(svgAssertTable(polylines2path(segments),
         polylines2path(segments) + pointArray2path(resultPoints, 4),
-        polylines2path(segments) + pointArray2path(expectedPoint, 2)));
+        polylines2path(segments) + pointArray2path(expectedPoints, 2)));
 }
 
 function displayMessage(message) {
