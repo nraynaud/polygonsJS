@@ -37,11 +37,19 @@ function svgAssertTable(inputPath, outputPath, expectedPath) {
         + inTd(path2svg(outputPath, 'output'))
         + inTd(path2svg(expectedPath, 'expected'))
         + inTd(pathList2svg([
-        {d: expectedPath, cssClass: 'expected'},
-        {d: outputPath, cssClass: 'output'}
-    ]));
+            {d: expectedPath, cssClass: 'expected'},
+            {d: outputPath, cssClass: 'output'}
+        ]));
     return '<div>Geometry: <table class="svgTest"><tr><th>Input</th><th>Actual Output</th><th>Expected Output</th><th>Superposed</th></tr><tr>'
         + row + '</tr></table></div>';
+}
+
+function svgTable(title, obj) {
+    var cols = [...Object.keys(obj)];
+    var header = cols.map((k) => '<th>' + k + '</th>')
+    var row = cols.map((k) => inTd(path2svg(obj[k], 'input')))
+    return '<div>' + title + '<table class="svgTest"><tr>' + header + '</tr><tr>'
+        + row + '</tr></table></div>'
 }
 
 function randomPoint() {
@@ -51,12 +59,15 @@ function randomPoint() {
 function p(x, y) {
     return {x: x, y: y};
 }
+
 function pp(x, y) {
     return x + ',' + y;
 }
+
 function ppp(point) {
     return pp(point.x, point.y);
 }
+
 function point2circlePath(center, radius) {
     if (radius == null)
         radius = 4;

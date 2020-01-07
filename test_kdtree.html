@@ -50,8 +50,7 @@ The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">http
 <script src="test_display.js"></script>
 <script src="kdtree.js"></script>
 <script>
-    var points = [p(2, 3), p(5, 4), p(9, 6), p(4, 7), p(8, 1), p(7, 2)].map(pt => p(pt.x * 10, pt.y * 10))
-    var tree = new KDtree(points)
+    const points = [p(2, 3), p(5, 4), p(9, 6), p(4, 7), p(8, 1), p(8, 5), p(7, 2)].map(pt => p(pt.x * 10, pt.y * 10));
 
     function getTreeLines(node, min, max) {
         const result = []
@@ -74,22 +73,71 @@ The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">http
     }
 
     test('create tree', function () {
-        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), points, []);
+        const tree = new KDtree(points);
+        console.log('tree', tree)
+        let svgPoints = pointArray2path(points, 2);
+        displayMessage(svgTable('Tree', {
+            points: svgPoints,
+            tree: polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints
+        }))
     });
 
-    test('find a point behind the border', function () {
+    test('find nearest point behind the border', function () {
+        const tree = new KDtree(points);
         let searchPoint = p(69, 60);
         const result = tree.findNearestNeighbor(searchPoint)
-        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points, searchPoint], [result]);
+        let svgSearchPoint = pointArray2path([searchPoint], 3);
+        let svgPoints = pointArray2path(points, 2);
+        displayMessage(svgTable('Tree', {
+            points: svgPoints,
+            tree: polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints,
+            searchPoint: svgPoints + svgSearchPoint,
+            nearest: polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints + svgSearchPoint
+                + pointArray2path([result], 6)
+        }))
     });
     test('find minimum X', function () {
+        const tree = new KDtree(points);
         const minX = tree.findMinimum('x')
-        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points], [minX]);
+        let svgPoints = pointArray2path(points, 2);
+        displayMessage(svgTable('Tree', {
+            'minimum X': polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints + pointArray2path([minX], 6),
+        }))
     });
     test('find minimum Y', function () {
+        const tree = new KDtree(points);
         const minY = tree.findMinimum('y')
-        displaySegmentsAndPoint(getTreeLines(tree.tree, 0, 100), [...points], [minY]);
+        let svgPoints = pointArray2path(points, 2);
+        displayMessage(svgTable('Tree', {
+            'minimum Y': polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints + pointArray2path([minY], 6),
+        }))
     });
+    test('can delete root', function () {
+        const tree = new KDtree(points);
+        let initialTreeLines = getTreeLines(tree.tree, 0, 100);
+        let svgPoints = pointArray2path(points, 2);
+
+        let target = tree.tree.point;
+        tree.deletePoint(target)
+        displayMessage(svgTable('Tree', {
+            'input tree': polylines2path(initialTreeLines) + svgPoints,
+            'point to delete': svgPoints + pointArray2path([target], 6),
+            'output tree': polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints + pointArray2path([target], 6),
+        }))
+    });
+    test('can delete random point and rebalance', function () {
+        const tree = new KDtree(points);
+        let initialTreeLines = getTreeLines(tree.tree, 0, 100);
+        let svgPoints = pointArray2path(points, 2);
+        let target = points[5];
+        tree.deletePoint(target)
+        displayMessage(svgTable('Tree', {
+            'input tree': polylines2path(initialTreeLines) + svgPoints,
+            'point to delete': svgPoints + pointArray2path([target], 6),
+            'output tree': polylines2path(getTreeLines(tree.tree, 0, 100)) + svgPoints + pointArray2path([target], 6),
+        }))
+    });
+
 </script>
 </body>
 </html>

@@ -24,22 +24,22 @@ class KDtree {
     }
 
     findMinimum(axis) {
-        return this.findMinimumInTree(this.tree, axis)
+        return this.findMinimumNodeInTree(this.tree, axis).point
     }
 
-    findMinimumInTree(node, axis) {
+    findMinimumNodeInTree(node, axis) {
         if (node.axis === axis) {
-            return node.left ? this.findMinimumInTree(node.left, axis) : node.point;
+            return node.left ? this.findMinimumNodeInTree(node.left, axis) : node;
         }
-        let left = node.left ? this.findMinimumInTree(node.left, axis) : null
-        let right = node.right ? this.findMinimumInTree(node.right, axis) : null
-        const nodes = [left, right, node.point]
+        let left = node.left ? this.findMinimumNodeInTree(node.left, axis) : null
+        let right = node.right ? this.findMinimumNodeInTree(node.right, axis) : null
+        const nodes = [left, right, node]
         nodes.sort((p1, p2) => {
             if (p1 == null)
                 return 1
             if (p2 == null)
                 return -1
-            return p1[axis] - p2[axis]
+            return p1.point[axis] - p2.point[axis]
         })
         return nodes[0]
     }
@@ -67,5 +67,36 @@ class KDtree {
             best = closestChoice(this.findNNInTree(point, children[1]), best)
         }
         return best
+    }
+
+    deletePoint(point) {
+        this.tree = this.deleteNode(point, this.tree)
+    }
+
+    deleteNode(point, node) {
+        // https://www.cs.cmu.edu/~ckingsf/bioinfo-lectures/kdtrees.pdf
+        if (node == null)
+            throw new Error('oops, not found' + point)
+        if (point === node.point) {
+            if (node.right) {
+                node.point = this.findMinimumNodeInTree(node.right, node.right.axis).point
+                node.right = this.deleteNode(node.point, node.right)
+                return node
+            } else if (node.left) {
+                // remove the minimum from the left tree, make what's remaining the new right
+                // the minimum becomes the new self
+                node.point = this.findMinimumNodeInTree(node.left, node.left.axis).point
+                node.right = this.deleteNode(node.point, node.left)
+                node.left = null
+            } else
+                // delete me, I was a leaf
+                return null
+        } else {
+            if (point[node.axis] < node.point[node.axis])
+                node.left = this.deleteNode(point, node.left)
+            else
+                node.right = this.deleteNode(point, node.right)
+        }
+        return node
     }
 }
