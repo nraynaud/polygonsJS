@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Simple Dynamic programming test</title>
+    <link rel="stylesheet" href="qunit-1.12.0.css">
+</head>
+<body>
+The source code is there: <a href="https://github.com/nraynaud/polygonsJS/">https://github.com/nraynaud/polygonsJS/</a>
+
+<script src="jquery-1.10.2.js"></script>
+<br>
+Trying to justify this text: "<span id="input">AAA BB CC DDDDD</span>" in <span
+        id="lineLength">6</span> char lines with DP.
+
+<pre id="result"></pre>
+
+<script>
+    let input = $('#input')[0].textContent;
+    let lineLength = parseInt($('#lineLength')[0].textContent);
+    let text = input.split(' ')
+    console.log('input', lineLength, input)
+    console.log('text', text)
+
+    function cost(line) {
+        const charLen = line.map(w => w.length).reduce((accumulator, value) => accumulator + value) + line.length - 1
+        const diff = lineLength - charLen
+        return diff >= 0 ? Math.pow(diff, 2) : Infinity
+    }
+
+    function costIndexes(start, stop) {
+        return cost(text.slice(start, stop))
+    }
+
+    const cache = [];
+
+    function evaluate(index) {
+        console.log('evaluate', index)
+        if (cache[index]) {
+            console.log('cache hit', index, cache[index])
+            return cache[index]
+        }
+        if (index >= text.length)
+            return 0
+        let bestCost = costIndexes(index, text.length)
+        let bestSplits = [text.slice(index, text.length)]
+
+        for (let i = index + 1; i < text.length; i++) {
+            let tail = evaluate(i);
+            const cost = costIndexes(index, i) + tail.bestCost
+            if (cost < bestCost) {
+                bestCost = cost
+                bestSplits = [text.slice(index, i), ...tail.bestSplits]
+            }
+        }
+        let result = {bestCost, bestSplits};
+        cache[index] = result
+        return result
+    }
+
+    let result = evaluate(0).bestSplits;
+    $('#result')[0].textContent = result.map(l => l.join(' ')).join(('\n'))
+    console.log(result)
+</script>
+</body>
+</html>
