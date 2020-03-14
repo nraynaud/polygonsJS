@@ -40,11 +40,8 @@ Trying to justify this text: "<span id="input">AAA BB CC DDDDD</span>" in <span
             console.log('cache hit', index, cache[index])
             return cache[index]
         }
-        if (index >= text.length)
-            return 0
         let bestCost = costIndexes(index, text.length)
         let bestSplits = [text.slice(index, text.length)]
-
         for (let i = index + 1; i < text.length; i++) {
             let tail = evaluate(i);
             const cost = costIndexes(index, i) + tail.bestCost
