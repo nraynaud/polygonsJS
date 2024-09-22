@@ -1,10 +1,10 @@
 "use strict";
 
 function pathList2svg(paths, test_display_viewBox) {
-    var content = '';
-    for (var i = 0; i < paths.length; i++)
+    let content = '';
+    for (let i = 0; i < paths.length; i++)
         content += '<path class="' + paths[i].cssClass + '" d="' + paths[i].d + '"/>\n';
-    var viewBox = test_display_viewBox ? ' viewBox="' + test_display_viewBox + '"' : '';
+    const viewBox = test_display_viewBox ? ' viewBox="' + test_display_viewBox + '"' : '';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"' + viewBox + '>' + content + '</svg>';
 }
 
@@ -19,11 +19,11 @@ function inTd(element) {
 }
 
 function svgDisplayTable(table) {
-    var div = '<div>Geometry: <table class="svgTest"><tr>';
-    for (var i = 0; i < table.length; i++)
+    let div = '<div>Geometry: <table class="svgTest"><tr>';
+    for (let i = 0; i < table.length; i++)
         div += '<th>' + table[i].label + '</th>';
     div += '</tr>';
-    for (i = 0; i < table.length; i++)
+    for (let i = 0; i < table.length; i++)
         div += '<td>' + table[i].content + '</td>';
     div += '</table></div>';
     QUnit.config.current.assertions.push({
@@ -33,7 +33,7 @@ function svgDisplayTable(table) {
 }
 
 function svgAssertTable(inputPath, outputPath, expectedPath) {
-    var row = inTd(path2svg(inputPath, 'input'))
+    const row = inTd(path2svg(inputPath, 'input'))
         + inTd(path2svg(outputPath, 'output'))
         + inTd(path2svg(expectedPath, 'expected'))
         + inTd(pathList2svg([
@@ -45,9 +45,9 @@ function svgAssertTable(inputPath, outputPath, expectedPath) {
 }
 
 function svgTable(title, obj) {
-    var cols = [...Object.keys(obj)];
-    var header = cols.map((k) => '<th>' + k + '</th>')
-    var row = cols.map((k) => inTd(path2svg(obj[k], 'input')))
+    const cols = [...Object.keys(obj)];
+    const header = cols.map((k) => '<th>' + k + '</th>');
+    const row = cols.map((k) => inTd(path2svg(obj[k], 'input')));
     return '<div>' + title + '<table class="svgTest"><tr>' + header + '</tr><tr>'
         + row + '</tr></table></div>'
 }
@@ -78,19 +78,19 @@ function point2circlePath(center, radius) {
 }
 
 function pointArray2path(points, radius) {
-    var res = '';
-    for (var i = 0; i < points.length; i++)
+    let res = '';
+    for (let i = 0; i < points.length; i++)
         if (points[i])
             res += point2circlePath(points[i], radius);
     return res;
 }
 
 function polylines2path(segments) {
-    var p = '';
-    for (var i = 0; i < segments.length; i++) {
+    let p = '';
+    for (let i = 0; i < segments.length; i++) {
         if (segments[i] && segments[i].length) {
             p += 'M' + ppp(segments[i][0]);
-            for (var j = 1; j < segments[i].length; j++)
+            for (let j = 1; j < segments[i].length; j++)
                 p += ' L' + ppp(segments[i][j]);
         }
     }
@@ -98,9 +98,9 @@ function polylines2path(segments) {
 }
 
 function polygon2path(polygon) {
-    var res = '';
-    for (var i = 0; i < polygon.length; i++)
-        res += (i == 0 ? 'M' : 'L') + ppp(polygon[i]) + ' ';
+    let res = '';
+    for (let i = 0; i < polygon.length; i++)
+        res += (i === 0 ? 'M' : 'L') + ppp(polygon[i]) + ' ';
     return res + ' Z';
 }
 
