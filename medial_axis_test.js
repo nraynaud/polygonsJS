@@ -1,19 +1,20 @@
 "use strict";
+
 function pointOnParabola(t, directrix, focus) {
     // http://alecmce.com/category/math
-    var directrixVector = {x: directrix[0].x - directrix[1].x, y: directrix[0].y - directrix[1].y};
-    var pt = {x: directrix[0].x * (1 - t) + directrix[1].x * t, y: directrix[0].y * (1 - t) + directrix[1].y * t};
-    var ptToFocus = {x: focus.x - pt.x, y: focus.y - pt.y};
-    var dist = sqVectorLength(ptToFocus.x, ptToFocus.y) / (2 * (directrixVector.x * ptToFocus.y - directrixVector.y * ptToFocus.x));
+    const directrixVector = {x: directrix[0].x - directrix[1].x, y: directrix[0].y - directrix[1].y};
+    const pt = {x: directrix[0].x * (1 - t) + directrix[1].x * t, y: directrix[0].y * (1 - t) + directrix[1].y * t};
+    const ptToFocus = {x: focus.x - pt.x, y: focus.y - pt.y};
+    const dist = sqVectorLength(ptToFocus.x, ptToFocus.y) / (2 * (directrixVector.x * ptToFocus.y - directrixVector.y * ptToFocus.x));
     if (isFinite(dist))
         return {x: pt.x - directrixVector.y * dist, y: pt.y + directrixVector.x * dist};
     return null;
 }
 
 function segmentParabola(directrix, focus) {
-    var pts = [];
-    for (var i = 0; i <= 1; i += 0.1) {
-        var point = pointOnParabola(i, directrix, focus);
+    const pts = [];
+    for (let i = 0; i <= 1; i += 0.1) {
+        const point = pointOnParabola(i, directrix, focus);
         if (point)
             pts.push(point);
     }
@@ -45,72 +46,90 @@ function createSkeletonWithDisplay(polygon, observers) {
     };
     medialAxis.ParabolicRay.prototype.representation = function () {
         if (this.aheadPoint) {
-            var p1 = pointProjectedOnSegment(this.aheadPoint, this.edge.segment);
-            var p2 = pointProjectedOnSegment(this.origin, this.edge.segment);
+            const p1 = pointProjectedOnSegment(this.aheadPoint, this.edge.segment);
+            const p2 = pointProjectedOnSegment(this.origin, this.edge.segment);
             return polylines2path([segmentParabola([p1, p2], this.vertex)]);
         }
         return polylines2path([segmentParabola(this.edge.segment, this.vertex)]);
     };
     medialAxis.ParabolicRay.prototype.behindRepresentation = function () {
-        var p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
-        var p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
+        const p1 = pointProjectedOnSegment(this.origin, this.edge.segment);
+        const p2 = pointProjectedOnSegment(this.behindPoint, this.edge.segment);
         return p1 && p2 ? polylines2path([segmentParabola([p1, p2], this.vertex)]) : '';
     };
 
-    var newSkelRepresentation = '';
-    var currentRays = '';
-    var skelPoints = [];
-    var skelRepr = '';
-    var root = medialAxis.createSkeleton(polygon, {
+    let newSkelRepresentation = '';
+    let currentRays = '';
+    let skelPoints = [];
+    let skelRepr = '';
+    const root = medialAxis.createSkeleton(polygon, {
         initialized: function (rays, reflexPoints) {
             if (reflexPoints.length)
                 svgDisplayTable([
-                    {label: 'reflex points', content: pathList2svg([
-                        {d: polygon2path(polygon)},
-                        {cssClass: 'red', d: pointArray2path(reflexPoints)}
-                    ])}
+                    {
+                        label: 'reflex points', content: pathList2svg([
+                            {d: polygon2path(polygon)},
+                            {cssClass: 'red', d: pointArray2path(reflexPoints)}
+                        ])
+                    }
                 ]);
-            var rayRepresentation = '';
-            for (var i = 0; i < rays.length; i++)
+            let rayRepresentation = '';
+            for (let i = 0; i < rays.length; i++)
                 rayRepresentation += rays[i].representation();
             svgDisplayTable([
-                {label: 'initial rays', content: pathList2svg([
-                    {d: polygon2path(polygon)},
-                    {cssClass: 'red', d: rayRepresentation}
-                ])}
+                {
+                    label: 'initial rays', content: pathList2svg([
+                        {d: polygon2path(polygon)},
+                        {cssClass: 'red', d: rayRepresentation}
+                    ])
+                }
             ]);
         },
         eliminatedRadius: function (currentRay, nextRay, intersectionPoint, sqRadius, nextEdge, otherSqrDist) {
             svgDisplayTable([
-                {label: 'eliminated because of radius', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon) },
-                    {cssClass: 'blue', d: currentRay.representation() + raySitesRepresentation(currentRay)
-                        + nextRay.representation() + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))},
-                    {cssClass: 'red', d: nextEdge.representation()
-                        + pointArray2path([intersectionPoint], Math.sqrt(otherSqrDist))}
-                ])}
+                {
+                    label: 'eliminated because of radius', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {
+                            cssClass: 'blue', d: currentRay.representation() + raySitesRepresentation(currentRay)
+                                + nextRay.representation() + pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
+                        },
+                        {
+                            cssClass: 'red', d: nextEdge.representation()
+                                + pointArray2path([intersectionPoint], Math.sqrt(otherSqrDist))
+                        }
+                    ])
+                }
             ]);
         },
         rayFused: function (previousRay, nextRay, currentRay, intersectionPoint, sqRadius, newRay) {
             newSkelRepresentation += currentRay.representation() + nextRay.behindRepresentation();
             skelPoints.push(intersectionPoint);
             svgDisplayTable([
-                {label: 'selected intersection', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon) + previousRay.representation()},
-                    {d: previousRay.representation()},
-                    {cssClass: 'blue', d: nextRay.representation()},
-                    {cssClass: 'red', d: currentRay.representation() + pointArray2path([intersectionPoint])}
-                ])},
-                {label: 'new ray and corresponding sites', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
-                    {cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
-                        + raySitesRepresentation(newRay) + newRay.representation()}
-                ])},
-                {label: 'intersection', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()}
-                ])}
+                {
+                    label: 'selected intersection', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon) + previousRay.representation()},
+                        {d: previousRay.representation()},
+                        {cssClass: 'blue', d: nextRay.representation()},
+                        {cssClass: 'red', d: currentRay.representation() + pointArray2path([intersectionPoint])}
+                    ])
+                },
+                {
+                    label: 'new ray and corresponding sites', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()},
+                        {
+                            cssClass: 'red', d: pointArray2path([intersectionPoint], Math.sqrt(sqRadius))
+                                + raySitesRepresentation(newRay) + newRay.representation()
+                        }
+                    ])
+                },
+                {
+                    label: 'intersection', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {cssClass: 'blue', d: currentRay.representation() + nextRay.behindRepresentation()}
+                    ])
+                }
             ]);
             if (observers['rayFused'])
                 observers['rayFused'](previousRay, nextRay, currentRay, intersectionPoint, sqRadius, newRay);
@@ -125,53 +144,61 @@ function createSkeletonWithDisplay(polygon, observers) {
             currentRays = '';
             skelPoints = [];
             rayList.iterate(function (currentBucket) {
-                var current = currentBucket.val;
+                const current = currentBucket.val;
                 currentRays += current.representation();
             });
         },
         stepFinished: function () {
             skelRepr += newSkelRepresentation;
             svgDisplayTable([
-                {label: 'input step rays, selected intersections in red', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: currentRays},
-                    {cssClass: 'red', d: pointArray2path(skelPoints, 2)}
-                ])},
-                {label: 'added skeleton parts', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: newSkelRepresentation}
-                ])},
-                {label: 'skeleton after step', content: pathList2svg([
-                    {cssClass: 'gray', d: polygon2path(polygon)},
-                    {cssClass: 'blue', d: skelRepr}
-                ])}
+                {
+                    label: 'input step rays, selected intersections in red', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {cssClass: 'blue', d: currentRays},
+                        {cssClass: 'red', d: pointArray2path(skelPoints, 2)}
+                    ])
+                },
+                {
+                    label: 'added skeleton parts', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {cssClass: 'blue', d: newSkelRepresentation}
+                    ])
+                },
+                {
+                    label: 'skeleton after step', content: pathList2svg([
+                        {cssClass: 'gray', d: polygon2path(polygon)},
+                        {cssClass: 'blue', d: skelRepr}
+                    ])
+                }
             ]);
             newSkelRepresentation = '';
         },
         afterProcess: observers['afterProcess']
     });
-    var medialAxisRepr = displayMedialAxis(root.origin, root);
+    const medialAxisRepr = displayMedialAxis(root.origin, root);
 
     function displayMedialAxis(origin, branch) {
         if (branch.type === 'limb')
             return polylines2path([
                 [branch.vertex, origin]
             ]);
-        var newOrigin = branch.origin;
-        var res = polylines2path([
+        const newOrigin = branch.origin;
+        let res = polylines2path([
             [newOrigin, origin]
         ]);
-        for (var i = 0; i < branch.children.length; i++)
+        for (let i = 0; i < branch.children.length; i++)
             if (branch.children[i] != null)
                 res += displayMedialAxis(newOrigin, branch.children[i]);
         return res;
     }
 
     svgDisplayTable([
-        {label: 'medial axis', content: pathList2svg([
-            {cssClass: 'gray', d: polygon2path(polygon) },
-            {cssClass: 'blue', d: medialAxisRepr}
-        ])}
+        {
+            label: 'medial axis', content: pathList2svg([
+                {cssClass: 'gray', d: polygon2path(polygon)},
+                {cssClass: 'blue', d: medialAxisRepr}
+            ])
+        }
     ]);
 }
 
@@ -198,11 +225,11 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
         return null;
     }
 
-    var vVerticesMap = {};
+    const vVerticesMap = {};
 
     function vVertexForPoint(point) {
-        var key = 'p' + point.x + '|' + point.y;
-        var cached = vVerticesMap[key];
+        const key = 'p' + point.x + '|' + point.y;
+        let cached = vVerticesMap[key];
         if (cached == null) {
             cached = {point: point, outEdges: []};
             vVerticesMap[key] = cached;
@@ -212,13 +239,13 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
 
     function createFace(site, polygon) {
         function createVEdge(vvertex1, vvertex2, ray, face) {
-            var vEdge = {
+            const vEdge = {
                 v1: vvertex1,
                 v2: vvertex2,
                 ray: ray,
                 face: face
             };
-            for (var i = 0; i < vvertex2.outEdges.length; i++)
+            for (let i = 0; i < vvertex2.outEdges.length; i++)
                 if (vvertex2.outEdges[i].v1 === vvertex2 && vvertex2.outEdges[i].v2 === vvertex1) {
                     vEdge.twin = vvertex2.outEdges[i];
                     vvertex2.outEdges[i].twin = vEdge;
@@ -227,55 +254,61 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
             return vEdge;
         }
 
-        var finalPoint = site instanceof medialAxis.LineSite ? site.segment[0] : site.vertex;
-        var point = site instanceof medialAxis.LineSite ? site.segment[1] : site.vertex;
-        var forbidden = [];
-        var points = [point];
-        var vertices = [vVertexForPoint(point)];
-        var edges = [];
+        const finalPoint = site instanceof medialAxis.LineSite ? site.segment[0] : site.vertex;
+        let point = site instanceof medialAxis.LineSite ? site.segment[1] : site.vertex;
+        const forbidden = [];
+        const points = [point];
+        const vertices = [vVertexForPoint(point)];
+        const edges = [];
         var face = {site: site, edges: edges};
         do {
-            var result = findRayForPoint(point, site, forbidden);
+            const result = findRayForPoint(point, site, forbidden);
             forbidden.push(result.ray);
             point = result.nextPoint;
             if (result.nextPoint == null)
                 console.log(result);
             points.push(point);
             vertices.push(vVertexForPoint(point));
-            var edge = createVEdge(vertices[vertices.length - 2], vertices[vertices.length - 1], result.ray, face);
+            const edge = createVEdge(vertices[vertices.length - 2], vertices[vertices.length - 1], result.ray, face);
             if (edges.length)
                 edges[edges.length - 1].next = edge;
             edges.push(edge);
         } while (point !== finalPoint);
         console.log(points);
         svgDisplayTable([
-            {label: 'face ' + name, content: pathList2svg([
-                {cssClass: 'gray', d: polygon2path(polygon) },
-                {cssClass: 'red', d: site.representation()},
-                {cssClass: 'green', d: polylines2path([points])}
-            ])}
+            {
+                label: 'face ' + name, content: pathList2svg([
+                    {cssClass: 'gray', d: polygon2path(polygon)},
+                    {cssClass: 'red', d: site.representation()},
+                    {cssClass: 'green', d: polylines2path([points])}
+                ])
+            }
         ]);
         console.log(face);
         return face;
     }
 
-    var faces = [];
+    const faces = [];
     siteList.iterate(function (bucket) {
         faces.push(createFace(bucket.val, polygon));
     });
     for (var i = 0; i < faces.length; i++) {
         var face = faces[i];
-        for (var j = 0; j < face.edges.length; j++) {
+        for (let j = 0; j < face.edges.length; j++) {
             var edge = face.edges[j];
             if (edge.twin == null)
                 svgDisplayTable([
-                    {label: 'no twin', content: pathList2svg([
-                        {cssClass: 'gray', d: polygon2path(polygon) },
-                        {cssClass: 'green', d: face.site.representation()},
-                        {cssClass: 'red', d: polylines2path([
-                            [edge.v1.point, edge.v2.point]
-                        ])}
-                    ])}
+                    {
+                        label: 'no twin', content: pathList2svg([
+                            {cssClass: 'gray', d: polygon2path(polygon)},
+                            {cssClass: 'green', d: face.site.representation()},
+                            {
+                                cssClass: 'red', d: polylines2path([
+                                    [edge.v1.point, edge.v2.point]
+                                ])
+                            }
+                        ])
+                    }
                 ]);
         }
     }
@@ -283,58 +316,68 @@ function extractDCELAfterProcess(root, polygon, createLinkedList, run, siteList)
 }
 
 test('parabola', function () {
-    var focus = p(50, 50);
-    var directrix = [p(5, 60), p(60, 5)];
+    const focus = p(50, 50);
+    const directrix = [p(5, 60), p(60, 5)];
 
     svgDisplayTable([
-        {label: 'focus directrix', content: pathList2svg([
-            {d: polylines2path([directrix]) + pointArray2path([focus]) + polylines2path([segmentParabola(directrix, focus)])}
-        ])}
+        {
+            label: 'focus directrix', content: pathList2svg([
+                {d: polylines2path([directrix]) + pointArray2path([focus]) + polylines2path([segmentParabola(directrix, focus)])}
+            ])
+        }
     ]);
 });
 
 test('PLL solver non-parallel', function () {
-    var s1 = [p(10, 10), p(100, 10)];
-    var s2 = [p(100, 10), p(100, 140)];
-    var vertex = p(40, 100);
+    const s1 = [p(10, 10), p(100, 10)];
+    const s2 = [p(100, 10), p(100, 140)];
+    const vertex = p(40, 100);
 
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex), function () {
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex), function () {
         return true;
     });
-    var resultsDisplay = '';
-    for (var i = 0; i < result.length; i++) {
-        var obj = result[i];
+    let resultsDisplay = '';
+    for (let i = 0; i < result.length; i++) {
+        const obj = result[i];
         resultsDisplay += pointArray2path([obj], obj.r);
     }
     svgDisplayTable([
-        {label: 'focus directrix', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
-                + polylines2path([segmentParabola(s2, vertex)])
-                + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'focus directrix', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
+                        + polylines2path([segmentParabola(s2, vertex)])
+                        + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
 });
 
 test('PLL solver perpendicular', function () {
-    var s1 = [p(10, 10), p(100, 10)];
-    var s2 = [p(100, 10), p(100, 140)];
-    var vertex = p(10, 10);
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
-    var resultsDisplay = '';
+    let s1 = [p(10, 10), p(100, 10)];
+    let s2 = [p(100, 10), p(100, 140)];
+    let vertex = p(10, 10);
+    let result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    let resultsDisplay = '';
     for (var i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
     svgDisplayTable([
-        {label: 'focus directrix', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
-                + polylines2path([segmentParabola(s2, vertex)])
-                + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'focus directrix', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
+                        + polylines2path([segmentParabola(s2, vertex)])
+                        + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
 
     s1 = [p(20, 150), p(10, 140)];
-    s2 = [p(10, 140), p(10, 95) ];
+    s2 = [p(10, 140), p(10, 95)];
     vertex = p(10, 95);
 
     result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
@@ -342,28 +385,37 @@ test('PLL solver perpendicular', function () {
     for (i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
     svgDisplayTable([
-        {label: 'focus directrix', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
-                + polylines2path([segmentParabola(s2, vertex)])
-                + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'focus directrix', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red', d: pointArray2path(result, 2) + resultsDisplay
+                        + polylines2path([segmentParabola(s2, vertex)])
+                        + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
 });
 
 test('PLL solver parallel', function () {
-    var s1 = [p(10, 10), p(10, 140)];
-    var s2 = [p(100, 140), p(100, 10)];
-    var vertex = p(25, 100);
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
-    var resultsDisplay = '';
-    for (var i = 0; i < result.length; i++)
+    const s1 = [p(10, 10), p(10, 140)];
+    const s2 = [p(100, 140), p(100, 10)];
+    const vertex = p(25, 100);
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    let resultsDisplay = '';
+    for (let i = 0; i < result.length; i++)
         resultsDisplay += pointArray2path([result[i]], result[i].r);
     svgDisplayTable([
-        {label: 'edges and circle', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s2, vertex)]) + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'edges and circle', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red',
+                    d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s2, vertex)]) + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
     deepEqual(result, [
         {x: 55, y: 133.54101966249684, r: -45},
@@ -372,20 +424,25 @@ test('PLL solver parallel', function () {
 });
 
 test('PLL solver point on side', function () {
-    var s1 = [p(10, 10), p(10, 140)];
-    var s2 = [p(100, 140), p(100, 10)];
-    var vertex = p(10, 50);
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
-    var resultsDisplay = '';
-    for (var i = 0; i < result.length; i++) {
-        var obj = result[i];
+    const s1 = [p(10, 10), p(10, 140)];
+    const s2 = [p(100, 140), p(100, 10)];
+    const vertex = p(10, 50);
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    let resultsDisplay = '';
+    for (let i = 0; i < result.length; i++) {
+        const obj = result[i];
         resultsDisplay += pointArray2path([obj], obj.r);
     }
     svgDisplayTable([
-        {label: 'edges and circle', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s2, vertex)]) + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'edges and circle', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red',
+                    d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s2, vertex)]) + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
     deepEqual(result, [
         {x: 55, y: 50, r: -45}
@@ -393,36 +450,43 @@ test('PLL solver point on side', function () {
 });
 
 test('PLL solver unstable', function () {
-    var factor = 1;
-    var s1 = [p(30 / factor, 100 / factor), p(10 / factor, 10 / factor)];
-    var s2 = [p(100 / factor, 10 / factor), p(50 / factor, 65 / factor)];
-    var vertex = p(50 / factor, 65 / factor);
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
-    var resultsDisplay = '';
-    for (var i = 0; i < result.length; i++) {
-        var obj = result[i];
+    const factor = 1;
+    const s1 = [p(30 / factor, 100 / factor), p(10 / factor, 10 / factor)];
+    const s2 = [p(100 / factor, 10 / factor), p(50 / factor, 65 / factor)];
+    const vertex = p(50 / factor, 65 / factor);
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addVertex(vertex));
+    let resultsDisplay = '';
+    for (let i = 0; i < result.length; i++) {
+        const obj = result[i];
         resultsDisplay += pointArray2path([obj], obj.r);
     }
     deepEqual(result.length, 1);
     svgDisplayTable([
-        {label: 'edges and circle', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
-            {cssClass: 'red', d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s1, vertex)]) + polylines2path([segmentParabola(s1, vertex)])}
-        ])}
+        {
+            label: 'edges and circle', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2]) + pointArray2path([vertex])},
+                {
+                    cssClass: 'red',
+                    d: pointArray2path(result) + resultsDisplay + polylines2path([segmentParabola(s1, vertex)]) + polylines2path([segmentParabola(s1, vertex)])
+                }
+            ])
+        }
     ]);
 });
 
 test('LLL solver', function () {
-    var s1 = [p(10, 10), p(100, 10)];
-    var s2 = [p(100, 10), p(100, 140)];
-    var s3 = [p(100, 140), p(10, 140)];
+    const s1 = [p(10, 10), p(100, 10)];
+    const s2 = [p(100, 10), p(100, 140)];
+    const s3 = [p(100, 140), p(10, 140)];
 
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
     svgDisplayTable([
-        {label: 'edges and circle', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2, s3])},
-            {cssClass: 'red', d: pointArray2path(result, result[0].r)}
-        ])}
+        {
+            label: 'edges and circle', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2, s3])},
+                {cssClass: 'red', d: pointArray2path(result, result[0].r)}
+            ])
+        }
     ]);
     deepEqual(result, [
         {x: 35, y: 75, r: 65}
@@ -430,19 +494,21 @@ test('LLL solver', function () {
 });
 
 test('LLL solver with flat vertex', function () {
-    var flatVertex = p(50, 10);
-    var v1 = p(10, 10);
-    var v2 = p(100, 10);
-    var v3 = p(100, 140);
-    var s1 = [v1, flatVertex];
-    var s2 = [flatVertex, v2];
-    var s3 = [v2, v3];
-    var result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
+    const flatVertex = p(50, 10);
+    const v1 = p(10, 10);
+    const v2 = p(100, 10);
+    const v3 = p(100, 140);
+    const s1 = [v1, flatVertex];
+    const s2 = [flatVertex, v2];
+    const s3 = [v2, v3];
+    const result = solver.solveEquations(new solver.EquationSystemCreator().addSegment(s1).addSegment(s2).addSegment(s3));
     svgDisplayTable([
-        {label: 'edges and circle', content: pathList2svg([
-            {cssClass: 'blue', d: polylines2path([s1, s2, s3]) + pointArray2path([v1, flatVertex, v2, v3])},
-            {cssClass: 'red', d: pointArray2path(result, result[0].r)}
-        ])}
+        {
+            label: 'edges and circle', content: pathList2svg([
+                {cssClass: 'blue', d: polylines2path([s1, s2, s3]) + pointArray2path([v1, flatVertex, v2, v3])},
+                {cssClass: 'red', d: pointArray2path(result, result[0].r)}
+            ])
+        }
     ]);
     deepEqual(result, [
         {x: 50, y: 60, r: 50}
@@ -493,7 +559,7 @@ test('medial axis4, rectangle', function () {
 
 test('medial axis5, convex polygon', function () {
 
-    var p2 = [
+    const p2 = [
         [326, 361],
         [361, 300],
         [397, 258],
@@ -509,8 +575,8 @@ test('medial axis5, convex polygon', function () {
         [367, 475],
         [348, 438]
     ];
-    var polygon2 = [];
-    for (var i = 0; i < p2.length; i++) {
+    const polygon2 = [];
+    for (let i = 0; i < p2.length; i++) {
         polygon2.push(p((p2[i][0] - 326) / 2, (p2[i][1] - 220) / 2));
     }
     createSkeletonWithDisplay(polygon2);
@@ -537,7 +603,7 @@ test('medial axis6, rectangle with flat vertices', function () {
 });
 
 test('snake', function () {
-    var poly = [p(458, 39),
+    const poly = [p(458, 39),
         p(458, 39),
         p(395, 46),
         p(308, 76),
@@ -581,8 +647,8 @@ test('snake', function () {
         p(456, 23),
         p(498, 15)
     ];
-    for (var i = 0; i < poly.length; i++) {
-        var point = poly[i];
+    for (let i = 0; i < poly.length; i++) {
+        const point = poly[i];
         point.x /= 2.5;
         point.y /= 2.5;
     }
@@ -594,23 +660,23 @@ test('snake', function () {
 
 test('cut square with hole', function () {
 
-    var centerX = 75;
-    var centerY = 75;
+    const centerX = 75;
+    const centerY = 75;
 
     function cp(xdiff, ydiff) {
         return p(centerX + xdiff, centerY + ydiff);
     }
 
-    var outerSide = 130;
-    var halfOuterSide = outerSide / 2;
-    var wallThickness = 50;
+    const outerSide = 130;
+    const halfOuterSide = outerSide / 2;
+    const wallThickness = 50;
 
-    var inserted1 = cp(halfOuterSide, 0);
-    var inserted2 = cp(halfOuterSide - wallThickness, 0);
-    var inserted3 = cp(halfOuterSide - wallThickness, 0);
-    var inserted4 = cp(halfOuterSide, 0);
+    const inserted1 = cp(halfOuterSide, 0);
+    const inserted2 = cp(halfOuterSide - wallThickness, 0);
+    const inserted3 = cp(halfOuterSide - wallThickness, 0);
+    const inserted4 = cp(halfOuterSide, 0);
 
-    var polygon = [
+    const polygon = [
         cp(-halfOuterSide, -halfOuterSide),
         cp(-halfOuterSide, halfOuterSide),
         cp(halfOuterSide, halfOuterSide),
@@ -624,6 +690,6 @@ test('cut square with hole', function () {
         inserted4,
         cp(halfOuterSide, -halfOuterSide)
     ];
-    var root = createSkeletonWithDisplay(polygon, {afterProcess: extractDCELAfterProcess});
+    const root = createSkeletonWithDisplay(polygon, {afterProcess: extractDCELAfterProcess});
 
 });
